@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>小朋友下樓梯</title>
+<style>
+  :root{
+    --bg:#1b1230;
+    --wall:#3a2a5e;
+    --ink:#f5ecff;
+    --accent:#ffc83d;
+    --danger:#ff5d73;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:radial-gradient(circle at 50% 20%, #2a1b4d 0%, var(--bg) 70%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif;
+    color:var(--ink);overflow:hidden;touch-action:none;
+  }
+  #wrap{position:relative;}
+  canvas{
+    display:block;
+    border:6px solid var(--wall);
+    border-radius:14px;
+    background:#241845;
+    box-shadow:0 18px 60px rgba(0,0,0,.55), inset 0 0 80px rgba(0,0,0,.35);
+    image-rendering:pixelated;
+  }
+  #hud{
+    position:absolute;top:14px;left:18px;right:18px;
+    display:flex;justify-content:space-between;align-items:center;
+    pointer-events:none;font-weight:700;
+    text-shadow:0 2px 4px rgba(0,0,0,.6);
+  }
+  #floor{font-size:20px;letter-spacing:1px;}
+  #hp{display:flex;gap:3px;}
+  .heart{width:16px;height:16px;}
+  #overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;
+    background:rgba(20,10,40,.78);border-radius:10px;
+    backdrop-filter:blur(3px);text-align:center;padding:24px;
+    overflow-y:auto;
+  }
+  #overlay.hidden{display:none;}
+  #overlay h1{font-size:34px;color:var(--accent);letter-spacing:4px;}
+  #overlay p{line-height:1.8;opacity:.9;font-size:15px;}
+  #overlay .big{font-size:26px;color:var(--accent);}
+  button.start{
+    margin-top:6px;padding:12px 36px;font-size:18px;font-weight:700;
+    border:none;border-radius:999px;cursor:pointer;
+    background:var(--accent);color:#3a2400;font-family:inherit;
+    box-shadow:0 6px 0 #b8860b;transition:transform .08s;
+  }
+  button.start:active{transform:translateY(4px);box-shadow:0 2px 0 #b8860b;}
+  #nameInput{
+    width:220px;padding:11px 16px;font-size:17px;text-align:center;
+    border-radius:999px;border:2px solid rgba(255,255,255,.3);
+    background:rgba(255,255,255,.1);color:var(--ink);
+    font-family:inherit;outline:none;
+  }
+  #nameInput:focus{border-color:var(--accent);}
+  #nameInput::placeholder{color:rgba(245,236,255,.4);}
+  #nameErr{color:var(--danger);font-size:13px;min-height:18px;margin:0;}
+  table.rank{
+    border-collapse:collapse;font-size:15px;min-width:250px;
+    background:rgba(255,255,255,.05);border-radius:10px;overflow:hidden;
+  }
+  table.rank th, table.rank td{padding:6px 14px;text-align:left;}
+  table.rank th{
+    background:rgba(255,255,255,.1);color:var(--accent);
+    font-size:13px;letter-spacing:2px;
+  }
+  table.rank td.num{text-align:center;width:40px;}
+  table.rank td.score{text-align:right;}
+  table.rank tr.me td{background:rgba(255,200,61,.18);color:var(--accent);font-weight:700;}
+  .linkBtn{
+    background:none;border:none;color:rgba(245,236,255,.55);
+    font-size:13px;cursor:pointer;text-decoration:underline;font-family:inherit;
+  }
+  .linkBtn:hover{color:var(--ink);}
+  #touch{
+    display:none;width:100%;max-width:480px;
+    justify-content:space-between;margin-top:14px;gap:14px;
+  }
+  .pad{
+    flex:1;height:74px;border-radius:18px;border:none;
+    background:rgba(255,255,255,.12);color:var(--ink);
+    font-size:34px;font-weight:900;cursor:pointer;user-select:none;
+    border:2px solid rgba(255,255,255,.18);
+  }
+  .pad:active{background:rgba(255,255,255,.3);}
+  @media (pointer:coarse){ #touch{display:flex;} }
+  #tip{margin-top:10px;font-size:13px;opacity:.55;}
+  @media (pointer:coarse){ #tip{display:none;} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="420" height="640"></canvas>
+  <div id="hud">
+    <div id="floor">第 0 層</div>
+    <div id="hp"></div>
+  </div>
+  <div id="overlay">
+    <h1>小朋友下樓梯</h1>
+    <p>
+      ←→ 或 A / D 移動,一路往下跳!<br>
+      🟫 普通樓梯:回 1 點血&nbsp;&nbsp;🔺 尖刺:扣 3 點血<br>
+      ▶ 輸送帶:會把你推走&nbsp;&nbsp;🟠 脆弱地板:踩了會碎<br>
+      🌀 彈簧:把你彈起來&nbsp;&nbsp;⚠️ 小心天花板的尖刺!
+    </p>
+    <input id="nameInput" maxlength="10" placeholder="輸入你的名字" autocomplete="off">
+    <p id="nameErr"></p>
+    <button class="start" id="startBtn">開始遊戲</button>
+  </div>
+</div>
+<div id="touch">
+  <button class="pad" id="leftPad">◀</button>
+  <button class="pad" id="rightPad">▶</button>
+</div>
+<div id="tip">鍵盤 ← → / A D 控制 · 死掉後按空白鍵重來</div>
+
+<script>
+(() => {
+"use strict";
+const cvs = document.getElementById("game");
+const ctx = cvs.getContext("2d");
+const W = cvs.width, H = cvs.height;
+
+const overlay = document.getElementById("overlay");
+const startBtn = document.getElementById("startBtn");
+const floorEl = document.getElementById("floor");
+const hpEl = document.getElementById("hp");
+
+// ----- 常數 -----
+const MAX_HP = 10;
+const PLAT_H = 16;
+const PLAT_W = 96;
+const CEIL_H = 26;            // 天花板尖刺高度
+const GRAVITY = 0.45;
+const MOVE_SPEED = 4.2;
+const TYPES = { NORMAL:0, SPIKE:1, BELT_L:2, BELT_R:3, FRAGILE:4, SPRING:5 };
+
+// ----- 狀態 -----
+let state = "menu";           // menu | play | dead
+let player, plats, scrollSpeed, depth, floorCount, hp, invul, shake, time, spawnY;
+let keys = { left:false, right:false };
+let playerName = "";
+
+// ----- 排行榜(統一記錄在你的 Google 試算表) -----
+// ★★★ 設定步驟:部署好 Google Apps Script 後,把網址貼在下面的引號裡 ★★★
+// 範例:const SHEET_API = "https://script.google.com/macros/s/AKfycb.../exec";
+const SHEET_API = "https://script.google.com/macros/s/AKfycbyn9-EoTE7XF1N2s82B__rHltrzEdcgINlByi7UhpYfo3HjZ7sHkkjS27Hwxr57blhI/exec";
+// 未填寫網址時,會暫時改存玩家自己的瀏覽器,方便你先在本機測試。
+
+const LB_KEY = "stairs_leaderboard";
+const NAME_KEY = "stairs_last_name";
+let memStore = {};            // localStorage 不可用時的備援
+function storeGet(k){
+  try { return localStorage.getItem(k); } catch(e){ return memStore[k] ?? null; }
+}
+function storeSet(k, v){
+  try { localStorage.setItem(k, v); } catch(e){ memStore[k] = v; }
+}
+function loadBoard(){
+  try { return JSON.parse(storeGet(LB_KEY)) || []; } catch(e){ return []; }
+}
+function saveScoreLocal(name, floor){
+  let board = loadBoard();
+  board.push({ name, floor, t: Date.now() });
+  // 每位玩家只保留最佳成績
+  const best = {};
+  board.forEach(e => {
+    if(!best[e.name] || e.floor > best[e.name].floor) best[e.name] = e;
+  });
+  board = Object.values(best);
+  board.sort((a,b) => b.floor - a.floor || a.t - b.t);
+  board.length = Math.min(board.length, 10);
+  storeSet(LB_KEY, JSON.stringify(board));
+}
+function deviceInfo(){
+  const ua = navigator.userAgent;
+  let type = "電腦";
+  if(/iPad|Tablet/i.test(ua)) type = "平板";
+  else if(/Mobi|Android|iPhone/i.test(ua)) type = "手機";
+  let os = "其他系統";
+  if(/Windows/i.test(ua)) os = "Windows";
+  else if(/Android/i.test(ua)) os = "Android";
+  else if(/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
+  else if(/Mac/i.test(ua)) os = "Mac";
+  else if(/Linux/i.test(ua)) os = "Linux";
+  let browser = "其他瀏覽器";
+  if(/Edg\//.test(ua)) browser = "Edge";
+  else if(/Chrome\//.test(ua)) browser = "Chrome";
+  else if(/Firefox\//.test(ua)) browser = "Firefox";
+  else if(/Safari\//.test(ua)) browser = "Safari";
+  return type + " · " + os + " · " + browser;
+}
+async function submitScore(name, floor){
+  if(!SHEET_API){ saveScoreLocal(name, floor); return; }
+  try{
+    await fetch(SHEET_API, {
+      method: "POST",
+      mode: "no-cors",                       // Apps Script 需要這個模式
+      body: JSON.stringify({ name, floor, device: deviceInfo() })
+    });
+  }catch(e){ /* 離線時略過,不影響遊戲 */ }
+}
+async function fetchBoard(){
+  if(!SHEET_API) return loadBoard();
+  try{
+    const r = await fetch(SHEET_API + "?t=" + Date.now());
+    return await r.json();
+  }catch(e){ return null; }                  // null = 連線失敗
+}
+async function loadBoardArea(current){
+  const el = document.getElementById("boardArea");
+  if(!el) return;
+  el.innerHTML = '<p style="font-size:13px;opacity:.6;">排行榜載入中…</p>';
+  const board = await fetchBoard();
+  const el2 = document.getElementById("boardArea");
+  if(!el2) return;                           // 畫面已切換就不更新
+  if(board === null){
+    el2.innerHTML = '<p style="font-size:13px;opacity:.6;">⚠️ 無法連上排行榜,請檢查網路</p>';
+  } else {
+    el2.innerHTML = board.length ? boardHTML(board, current)
+      : '<p style="font-size:13px;opacity:.6;">還沒有人留下紀錄,快來搶頭香!</p>';
+  }
+}
+function boardHTML(board, current){
+  let rows = "";
+  let marked = false;
+  board.forEach((e, i) => {
+    const medal = ["🥇","🥈","🥉"][i] || (i+1);
+    const isMe = !marked && current && e.name === current.name && e.floor === current.floor;
+    if(isMe) marked = true;
+    rows += "<tr" + (isMe ? ' class="me"' : "") + '><td class="num">' + medal + "</td><td>" +
+            escapeHTML(String(e.name)) + '</td><td class="score">' + e.floor + " 層</td></tr>";
+  });
+  return '<table class="rank"><tr><th colspan="3">🏆 排行榜</th></tr>' + rows + "</table>";
+}
+function escapeHTML(s){
+  return s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+function reset(){
+  player = { x: W/2 - 13, y: 140, w: 26, h: 30, vx:0, vy:0, onPlat:null, face:1, squash:0 };
+  plats = [];
+  scrollSpeed = 1.4;
+  depth = 0; floorCount = 0;
+  hp = MAX_HP; invul = 0; shake = 0; time = 0;
+  // 初始平台:一塊在腳下,其餘往下排
+  plats.push(makePlat(W/2 - PLAT_W/2, 200, TYPES.NORMAL));
+  spawnY = 200;
+  while(spawnY < H + 120){
+    spawnY += rand(70, 110);
+    plats.push(makePlat(rand(10, W - PLAT_W - 10), spawnY, randomType()));
+  }
+}
+
+function makePlat(x, y, type){
+  return { x, y, w:PLAT_W, h:PLAT_H, type, broken:false, breakT:0, beltPhase:0, springT:0, landed:false };
+}
+
+function randomType(){
+  const hard = Math.min(0.5, floorCount / 250);   // 越深越難
+  const r = Math.random();
+  if(r < 0.42 - hard*0.3) return TYPES.NORMAL;
+  if(r < 0.58) return TYPES.SPIKE;
+  if(r < 0.70) return TYPES.BELT_L;
+  if(r < 0.82) return TYPES.BELT_R;
+  if(r < 0.93) return TYPES.FRAGILE;
+  return TYPES.SPRING;
+}
+
+const rand = (a,b) => a + Math.random()*(b-a);
+
+// ----- 輸入 -----
+addEventListener("keydown", e => {
+  if(e.target && e.target.tagName === "INPUT"){
+    if(e.code === "Enter") startGame();
+    return;                                  // 打字時不觸發遊戲按鍵
+  }
+  if(e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
+  if(e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
+  if(e.code === "Space" && state !== "play") startGame();
+});
+addEventListener("keyup", e => {
+  if(e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
+  if(e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
+});
+function bindPad(id, key){
+  const el = document.getElementById(id);
+  const on = e => { e.preventDefault(); keys[key] = true; };
+  const off = e => { e.preventDefault(); keys[key] = false; };
+  el.addEventListener("pointerdown", on);
+  el.addEventListener("pointerup", off);
+  el.addEventListener("pointerleave", off);
+  el.addEventListener("pointercancel", off);
+}
+bindPad("leftPad","left"); bindPad("rightPad","right");
+startBtn.addEventListener("click", startGame);
+cvs.addEventListener("pointerdown", () => { if(state === "dead") startGame(); });
+
+function startGame(){
+  const input = document.getElementById("nameInput");
+  if(input){                                 // 開始畫面:需要先輸入名字
+    const name = input.value.trim();
+    if(!name){
+      document.getElementById("nameErr").textContent = "請先輸入名字才能開始喔!";
+      input.focus();
+      return;
+    }
+    playerName = name;
+    storeSet(NAME_KEY, name);
+  }
+  if(!playerName) return;
+  reset();
+  state = "play";
+  overlay.classList.add("hidden");
+}
+
+// ----- 更新 -----
+function damage(n){
+  if(invul > 0) return;
+  hp = Math.max(0, hp - n);
+  invul = 60; shake = 10;
+  if(hp <= 0) die();
+}
+function heal(n){ hp = Math.min(MAX_HP, hp + n); }
+function die(){
+  state = "dead";
+  overlay.classList.remove("hidden");
+  overlay.innerHTML =
+    '<h1>遊戲結束</h1>' +
+    '<p class="big">' + escapeHTML(playerName) + ' 到達了第 ' + floorCount + ' 層!</p>' +
+    '<p>' + praise(floorCount) + '</p>' +
+    '<div id="boardArea"></div>' +
+    '<button class="start" id="againBtn">再玩一次</button>' +
+    '<button id="switchBtn" class="linkBtn">變更玩家</button>';
+  document.getElementById("againBtn").addEventListener("click", startGame);
+  document.getElementById("switchBtn").addEventListener("click", () => showMenu(true));
+  // 先上傳這局成績,再讀取最新排行榜
+  (async () => {
+    await submitScore(playerName, floorCount);
+    await loadBoardArea({ name: playerName, floor: floorCount });
+  })();
+}
+
+function showMenu(forceInput){
+  state = "menu";
+  overlay.classList.remove("hidden");
+  const saved = storeGet(NAME_KEY) || "";
+  const useWelcome = saved && !forceInput;
+  const nameUI = useWelcome
+    ? '<p class="big">歡迎回來,' + escapeHTML(saved) + '!</p>' +
+      '<button class="start" id="startBtn">開始遊戲</button>' +
+      '<button id="switchBtn" class="linkBtn">變更玩家</button>'
+    : '<input id="nameInput" maxlength="10" placeholder="輸入你的名字" autocomplete="off">' +
+      '<p id="nameErr"></p>' +
+      '<button class="start" id="startBtn">開始遊戲</button>';
+  overlay.innerHTML =
+    '<h1>小朋友下樓梯</h1>' +
+    '<p>←→ 或 A / D 移動,一路往下跳!<br>' +
+    '🟫 普通樓梯:回 1 點血&nbsp;&nbsp;🔺 尖刺:扣 3 點血<br>' +
+    '▶ 輸送帶:會把你推走&nbsp;&nbsp;🟠 脆弱地板:踩了會碎<br>' +
+    '🌀 彈簧:把你彈起來&nbsp;&nbsp;⚠️ 小心天花板的尖刺!</p>' +
+    nameUI +
+    '<div id="boardArea"></div>';
+  if(useWelcome) playerName = saved;
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  const switchBtn = document.getElementById("switchBtn");
+  if(switchBtn) switchBtn.addEventListener("click", () => showMenu(true));
+  const input = document.getElementById("nameInput");
+  if(input){
+    playerName = "";                         // 變更玩家時須重新確認名字
+    input.focus();
+  }
+  loadBoardArea(null);
+}
+function praise(n){
+  if(n >= 100) return "太神了!你是下樓梯之王 👑";
+  if(n >= 60)  return "超強!腳法行雲流水 🔥";
+  if(n >= 30)  return "不錯喔,再深一點就是高手了!";
+  if(n >= 10)  return "熱身完畢,再來一場吧!";
+  return "別灰心,小心尖刺再試一次!";
+}
+
+function update(){
+  time++;
+  if(invul > 0) invul--;
+  if(shake > 0) shake *= 0.85;
+  if(player.squash > 0) player.squash *= 0.85;
+
+  // 難度:速度隨層數提升
+  scrollSpeed = 1.4 + Math.min(2.6, floorCount * 0.025);
+
+  // 水平移動
+  player.vx = 0;
+  if(keys.left){ player.vx = -MOVE_SPEED; player.face = -1; }
+  if(keys.right){ player.vx = MOVE_SPEED; player.face = 1; }
+
+  // 站在平台上時跟著平台效果
+  const p = player.onPlat;
+  if(p){
+    if(p.type === TYPES.BELT_L) player.vx -= 2.2;
+    if(p.type === TYPES.BELT_R) player.vx += 2.2;
+  }
+
+  player.x += player.vx;
+  player.x = Math.max(2, Math.min(W - player.w - 2, player.x));
+
+  // 重力
+  player.vy += GRAVITY;
+  if(player.vy > 12) player.vy = 12;
+  const prevBottom = player.y + player.h;
+  player.y += player.vy;
+
+  // 平台整體上移(等同玩家往下)
+  for(const pl of plats) pl.y -= scrollSpeed;
+  player.y -= scrollSpeed;
+  depth += scrollSpeed;
+
+  // 碰撞:只在下落時著地
+  player.onPlat = null;
+  for(const pl of plats){
+    if(pl.broken) continue;
+    const overX = player.x + player.w > pl.x + 4 && player.x < pl.x + pl.w - 4;
+    const crossY = prevBottom - scrollSpeed <= pl.y + 6 && player.y + player.h >= pl.y;
+    if(player.vy >= 0 && overX && crossY){
+      player.y = pl.y - player.h;
+      player.vy = 0;
+      player.onPlat = pl;
+      if(!pl.landed){
+        pl.landed = true;
+        floorCount++;
+      }
+      player.squash = 1;
+      switch(pl.type){
+        case TYPES.NORMAL: heal(1); break;
+        case TYPES.SPIKE: damage(3); break;
+        case TYPES.FRAGILE: pl.breakT = 18; break;
+        case TYPES.SPRING:
+          player.vy = -10.5; pl.springT = 12; player.onPlat = null; break;
+      }
+      break;
+    }
+  }
+
+  // 脆弱地板倒數
+  for(const pl of plats){
+    if(pl.breakT > 0){
+      pl.breakT--;
+      if(pl.breakT === 0) pl.broken = true;
+    }
+    if(pl.springT > 0) pl.springT--;
+    pl.beltPhase += 0.15;
+  }
+
+  // 天花板尖刺
+  if(player.y < CEIL_H){
+    player.y = CEIL_H;
+    player.vy = 2;
+    damage(2);
+  }
+
+  // 掉出畫面
+  if(player.y > H + 40) { hp = 0; die(); return; }
+
+  // 移除超出畫面的平台、生成新平台
+  plats = plats.filter(pl => pl.y > -40);
+  spawnY -= scrollSpeed;
+  while(spawnY < H + 60){
+    spawnY += rand(70, 112);
+    plats.push(makePlat(rand(10, W - PLAT_W - 10), spawnY, randomType()));
+  }
+
+  floorEl.textContent = playerName + " · 第 " + floorCount + " 層";
+  renderHP();
+}
+
+// ----- 繪圖 -----
+function renderHP(){
+  let html = "";
+  for(let i=0;i<MAX_HP;i++){
+    const full = i < hp;
+    html += '<svg class="heart" viewBox="0 0 16 16">' +
+      '<path d="M8 14 L2 8 Q0 6 1.5 3.5 Q3 1.5 5.5 3 L8 5 L10.5 3 Q13 1.5 14.5 3.5 Q16 6 14 8 Z" ' +
+      'fill="' + (full ? '#ff5d73' : 'rgba(255,255,255,.15)') + '"/></svg>';
+  }
+  hpEl.innerHTML = html;
+}
+
+function drawPlat(pl){
+  const {x, y, w, h} = pl;
+  if(pl.broken) return;
+  ctx.save();
+  if(pl.breakT > 0) ctx.translate(rand(-2,2), rand(-1,1));
+
+  switch(pl.type){
+    case TYPES.NORMAL:
+      ctx.fillStyle = "#7c4f2c";
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#a9713f";
+      ctx.fillRect(x, y, w, 5);
+      ctx.fillStyle = "#5d3a1f";
+      for(let i=8;i<w;i+=22) ctx.fillRect(x+i, y+7, 3, h-9);
+      break;
+    case TYPES.SPIKE:
+      ctx.fillStyle = "#5a5470";
+      ctx.fillRect(x, y+8, w, h-8);
+      ctx.fillStyle = "#cfd2e8";
+      for(let i=0;i<w;i+=12){
+        ctx.beginPath();
+        ctx.moveTo(x+i, y+9);
+        ctx.lineTo(x+i+6, y-6);
+        ctx.lineTo(x+i+12, y+9);
+        ctx.fill();
+      }
+      break;
+    case TYPES.BELT_L:
+    case TYPES.BELT_R: {
+      ctx.fillStyle = "#2f6f6f";
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#9be8e0";
+      const dir = pl.type === TYPES.BELT_R ? 1 : -1;
+      const off = (pl.beltPhase * 6 * dir) % 18;
+      for(let i=-18;i<w+18;i+=18){
+        const ax = x + ((i + off) % (w+18) + (w+18)) % (w+18) - 9;
+        if(ax > x+2 && ax < x+w-12){
+          ctx.beginPath();
+          ctx.moveTo(ax, y+4); ctx.lineTo(ax+8*dir, y+h/2); ctx.lineTo(ax, y+h-4);
+          ctx.lineWidth = 3; ctx.strokeStyle = "#9be8e0"; ctx.stroke();
+        }
+      }
+      break;
+    }
+    case TYPES.FRAGILE:
+      ctx.fillStyle = pl.breakT > 0 ? "#e2a14b" : "#e8b15e";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = "#8c5a16";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x+w*0.3, y); ctx.lineTo(x+w*0.42, y+h*0.6); ctx.lineTo(x+w*0.36, y+h);
+      ctx.moveTo(x+w*0.68, y); ctx.lineTo(x+w*0.6, y+h*0.5); ctx.lineTo(x+w*0.72, y+h);
+      ctx.stroke();
+      break;
+    case TYPES.SPRING: {
+      const lift = pl.springT > 0 ? 4 : 0;
+      ctx.fillStyle = "#444a66";
+      ctx.fillRect(x, y+10, w, h-10);
+      ctx.strokeStyle = "#c9cff0";
+      ctx.lineWidth = 3;
+      for(let i=10;i<w-10;i+=24){
+        ctx.beginPath();
+        ctx.moveTo(x+i, y+10);
+        ctx.quadraticCurveTo(x+i+6, y-2-lift, x+i+12, y+10);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#8f97c4";
+      ctx.fillRect(x+4, y - lift, w-8, 5);
+      break;
+    }
+  }
+  ctx.restore();
+}
+
+function drawPlayer(){
+  if(invul > 0 && Math.floor(time/4) % 2 === 0) return; // 受傷閃爍
+  const sq = player.squash;
+  const px = player.x, py = player.y, w = player.w, h = player.h;
+  ctx.save();
+  ctx.translate(px + w/2, py + h);
+  ctx.scale(1 + sq*0.25, 1 - sq*0.25);
+  ctx.translate(-w/2, -h);
+
+  // 身體
+  ctx.fillStyle = "#ffd166";
+  roundRect(0, 8, w, h-8, 6); ctx.fill();
+  // 頭
+  ctx.fillStyle = "#ffe0a3";
+  ctx.beginPath(); ctx.arc(w/2, 9, 10, 0, Math.PI*2); ctx.fill();
+  // 頭髮
+  ctx.fillStyle = "#4a2c14";
+  ctx.beginPath(); ctx.arc(w/2, 6, 10, Math.PI, 0); ctx.fill();
+  // 眼睛
+  ctx.fillStyle = "#222";
+  const ex = w/2 + player.face*3;
+  ctx.beginPath(); ctx.arc(ex-3, 10, 1.6, 0, Math.PI*2); ctx.arc(ex+3, 10, 1.6, 0, Math.PI*2); ctx.fill();
+  // 腳
+  ctx.fillStyle = "#c0392b";
+  const step = player.vx !== 0 ? Math.sin(time*0.4)*3 : 0;
+  ctx.fillRect(4, h-4+step*0.5, 7, 4);
+  ctx.fillRect(w-11, h-4-step*0.5, 7, 4);
+  ctx.restore();
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function draw(){
+  ctx.save();
+  if(shake > 0.5) ctx.translate(rand(-shake,shake), rand(-shake,shake));
+
+  // 背景磚牆
+  ctx.fillStyle = "#241845";
+  ctx.fillRect(-10,-10,W+20,H+20);
+  ctx.fillStyle = "rgba(255,255,255,.03)";
+  const off = depth % 48;
+  for(let y=-off; y<H; y+=48){
+    for(let x = (Math.floor((y+depth)/48)%2)*40 - 40; x<W; x+=80){
+      ctx.fillRect(x, y, 76, 44);
+    }
+  }
+
+  for(const pl of plats) drawPlat(pl);
+  drawPlayer();
+
+  // 天花板尖刺
+  ctx.fillStyle = "#3a2a5e";
+  ctx.fillRect(-10, -10, W+20, CEIL_H-8);
+  ctx.fillStyle = "#cfd2e8";
+  for(let i=0;i<W;i+=16){
+    ctx.beginPath();
+    ctx.moveTo(i, CEIL_H-9);
+    ctx.lineTo(i+8, CEIL_H+8);
+    ctx.lineTo(i+16, CEIL_H-9);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ----- 主迴圈 -----
+function loop(){
+  if(state === "play") update();
+  draw();
+  requestAnimationFrame(loop);
+}
+reset();
+renderHP();
+showMenu();
+loop();
+})();
+</script>
+</body>
+</html>
