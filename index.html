@@ -35,6 +35,7 @@
     pointer-events:none;font-weight:700;
     text-shadow:0 2px 4px rgba(0,0,0,.6);
   }
+  #floor{font-size:20px;letter-spacing:1px;}
   #hudRight{display:flex;align-items:center;gap:10px;}
   #pauseBtn{
     pointer-events:auto;width:34px;height:34px;border-radius:50%;
@@ -42,9 +43,14 @@
     color:var(--ink);font-size:15px;cursor:pointer;line-height:1;
   }
   #pauseBtn:active{background:rgba(255,255,255,.3);}
-  #floor{font-size:20px;letter-spacing:1px;}
   #hp{display:flex;gap:3px;}
   .heart{width:16px;height:16px;}
+  #mpBoard{
+    position:absolute;top:70px;right:14px;pointer-events:none;
+    font-size:12px;text-align:right;line-height:1.7;
+    text-shadow:0 1px 3px rgba(0,0,0,.8);opacity:.92;
+  }
+  #mpBoard .me{color:var(--accent);font-weight:700;}
   #overlay{
     position:absolute;inset:0;display:flex;flex-direction:column;
     align-items:center;justify-content:flex-start;gap:14px;
@@ -55,7 +61,9 @@
   #overlay > :first-child{margin-top:auto;}
   #overlay > :last-child{margin-bottom:auto;}
   #overlay.hidden{display:none;}
+  #overlay.lite{background:rgba(20,10,40,.45);}
   #overlay h1{font-size:34px;color:var(--accent);letter-spacing:4px;}
+  #overlay h1.huge{font-size:80px;}
   #overlay p{line-height:1.8;opacity:.9;font-size:15px;}
   #overlay .big{font-size:26px;color:var(--accent);}
   button.start{
@@ -65,15 +73,17 @@
     box-shadow:0 6px 0 #b8860b;transition:transform .08s;
   }
   button.start:active{transform:translateY(4px);box-shadow:0 2px 0 #b8860b;}
-  #nameInput{
+  button.start.alt{background:#7f77dd;color:#fff;box-shadow:0 6px 0 #534ab7;}
+  button.start:disabled{opacity:.45;cursor:not-allowed;}
+  #nameInput, .txtInput{
     width:220px;padding:11px 16px;font-size:17px;text-align:center;
     border-radius:999px;border:2px solid rgba(255,255,255,.3);
     background:rgba(255,255,255,.1);color:var(--ink);
     font-family:inherit;outline:none;
   }
-  #nameInput:focus{border-color:var(--accent);}
-  #nameInput::placeholder{color:rgba(245,236,255,.4);}
-  #nameErr{color:var(--danger);font-size:13px;min-height:18px;margin:0;}
+  #nameInput:focus, .txtInput:focus{border-color:var(--accent);}
+  #nameInput::placeholder, .txtInput::placeholder{color:rgba(245,236,255,.4);}
+  #nameErr, .errMsg{color:var(--danger);font-size:13px;min-height:18px;margin:0;}
   table.rank{
     border-collapse:collapse;font-size:15px;min-width:250px;
     background:rgba(255,255,255,.05);border-radius:10px;overflow:hidden;
@@ -108,7 +118,42 @@
     background:rgba(255,200,61,.16);
     color:var(--accent);font-weight:700;
   }
+  .charCell.taken{opacity:.38;cursor:not-allowed;}
   .charCell canvas{image-rendering:pixelated;}
+  .lobbyList{
+    width:100%;max-width:300px;display:flex;flex-direction:column;gap:6px;
+  }
+  .lobbyRow{
+    display:flex;align-items:center;gap:10px;padding:6px 12px;
+    background:rgba(255,255,255,.07);border-radius:10px;font-size:14px;
+  }
+  .lobbyRow canvas{image-rendering:pixelated;}
+  .lobbyRow .nm{flex:1;text-align:left;}
+  .lobbyRow .rdy{font-size:12px;color:#7CFC9A;}
+  .lobbyRow .wait{font-size:12px;opacity:.5;}
+  .roomCode{
+    font-size:38px;letter-spacing:10px;color:var(--accent);font-weight:900;
+    background:rgba(255,255,255,.08);padding:6px 20px 6px 30px;border-radius:14px;
+  }
+  .modeBtn{
+    width:240px;padding:18px;font-size:20px;font-weight:700;border:none;
+    border-radius:16px;cursor:pointer;font-family:inherit;color:#fff;
+    box-shadow:0 6px 0 rgba(0,0,0,.35);transition:transform .08s;
+  }
+  .modeBtn:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.35);}
+  .modeBtn small{display:block;font-size:12px;font-weight:400;opacity:.85;margin-top:4px;}
+  #spectateBar{
+    position:absolute;left:0;right:0;top:70px;display:none;
+    justify-content:center;align-items:center;gap:14px;pointer-events:none;
+  }
+  #spectateBar .msg{
+    background:rgba(0,0,0,.55);padding:6px 16px;border-radius:999px;
+    font-size:14px;
+  }
+  #spectateBar button{
+    pointer-events:auto;width:34px;height:34px;border-radius:50%;border:none;
+    background:rgba(255,255,255,.2);color:var(--ink);font-size:16px;cursor:pointer;
+  }
   #touch{
     display:none;width:100%;max-width:480px;
     justify-content:space-between;margin-top:14px;gap:14px;
@@ -135,25 +180,22 @@
       <button id="pauseBtn" title="暫停">⏸</button>
     </div>
   </div>
-  <div id="overlay">
-    <h1>小朋友下樓梯</h1>
-    <p>
-      ←→ 或 A / D 移動,一路往下跳!<br>
-      🟫 普通樓梯:回 1 點血&nbsp;&nbsp;🔺 尖刺:扣 3 點血<br>
-      ▶ 輸送帶:會把你推走&nbsp;&nbsp;🟠 脆弱地板:踩了會碎<br>
-      🌀 彈簧:把你彈起來&nbsp;&nbsp;⚠️ 小心天花板的尖刺!
-    </p>
-    <input id="nameInput" maxlength="10" placeholder="輸入你的名字" autocomplete="off">
-    <p id="nameErr"></p>
-    <button class="start" id="startBtn">開始遊戲</button>
+  <div id="mpBoard"></div>
+  <div id="spectateBar">
+    <button id="specPrev">◀</button>
+    <div class="msg" id="specMsg"></div>
+    <button id="specNext">▶</button>
   </div>
+  <div id="overlay"></div>
 </div>
 <div id="touch">
   <button class="pad" id="leftPad">◀</button>
   <button class="pad" id="rightPad">▶</button>
 </div>
-<div id="tip">鍵盤 ← → / A D 控制 · 死掉後按空白鍵重來</div>
+<div id="tip">鍵盤 ← → / A D 控制 · Esc 或 P 暫停</div>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
 (() => {
 "use strict";
@@ -162,9 +204,11 @@ const ctx = cvs.getContext("2d");
 const W = cvs.width, H = cvs.height;
 
 const overlay = document.getElementById("overlay");
-const startBtn = document.getElementById("startBtn");
 const floorEl = document.getElementById("floor");
 const hpEl = document.getElementById("hp");
+const mpBoardEl = document.getElementById("mpBoard");
+const spectateBar = document.getElementById("spectateBar");
+const specMsg = document.getElementById("specMsg");
 
 // ----- 常數 -----
 const MAX_HP = 10;
@@ -175,34 +219,53 @@ const GRAVITY = 0.45;
 const MOVE_SPEED = 4.2;
 const TYPES = { NORMAL:0, SPIKE:1, BELT_L:2, BELT_R:3, FRAGILE:4, SPRING:5 };
 
+// ----- 後端設定 -----
+// ★ Google 試算表排行榜(已設定)
+const SHEET_API = "https://script.google.com/macros/s/AKfycbyn9-EoTE7XF1N2s82B__rHltrzEdcgINlByi7UhpYfo3HjZ7sHkkjS27Hwxr57blhI/exec";
+// ★★★ 多人模式設定:照教學建立 Firebase 後,把設定物件貼在下面 ★★★
+// 範例:const FIREBASE_CONFIG = { apiKey:"...", authDomain:"...", databaseURL:"...", projectId:"..." };
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAzE4rb0_4YhGjQBn3QhHAi5PyaiUW1XTw",
+  authDomain: "children-going-down.firebaseapp.com",
+  databaseURL: "https://children-going-down-default-rtdb.firebaseio.com",
+  projectId: "children-going-down",
+  storageBucket: "children-going-down.firebasestorage.app",
+  messagingSenderId: "79098785940",
+  appId: "1:79098785940:web:2fbef79dd2df1761338481"
+};
+// 未填寫時,多人模式按鈕會顯示「尚未啟用」,單人模式完全不受影響。
+
 // ----- 狀態 -----
-let state = "menu";           // menu | play | dead
-let player, plats, scrollSpeed, depth, floorCount, hp, invul, shake, time, spawnY;
+// state: menu | play | paused(單人) | dead(單人結束)
+//        mpcount(開賽倒數) | mppause(全員暫停) | spectate(觀戰) | mpend(本場排名)
+let state = "menu";
+let gameMode = "single";      // single | multi
+let player, plats, scrollSpeed, depth, floorCount, hp, invul, shake, time;
+let nextPlatWY, nextPlatIdx, platRng, mapSeed;
 let keys = { left:false, right:false };
 let playerName = "";
 
-// ----- 排行榜(統一記錄在你的 Google 試算表) -----
-// ★★★ 設定步驟:部署好 Google Apps Script 後,把網址貼在下面的引號裡 ★★★
-// 範例:const SHEET_API = "https://script.google.com/macros/s/AKfycb.../exec";
-const SHEET_API = "https://script.google.com/macros/s/AKfycbyn9-EoTE7XF1N2s82B__rHltrzEdcgINlByi7UhpYfo3HjZ7sHkkjS27Hwxr57blhI/exec";
-// 未填寫網址時,會暫時改存玩家自己的瀏覽器,方便你先在本機測試。
-
+// ----- 本機儲存 -----
 const LB_KEY = "stairs_leaderboard";
 const NAME_KEY = "stairs_last_name";
-let memStore = {};            // localStorage 不可用時的備援
+const CHAR_KEY = "stairs_char";
+const PID_KEY = "stairs_pid";
+const BOARD_CACHE_KEY = "stairs_board_cache";
+let memStore = {};
 function storeGet(k){
   try { return localStorage.getItem(k); } catch(e){ return memStore[k] ?? null; }
 }
 function storeSet(k, v){
   try { localStorage.setItem(k, v); } catch(e){ memStore[k] = v; }
 }
+
+// ----- 排行榜(Google 試算表) -----
 function loadBoard(){
   try { return JSON.parse(storeGet(LB_KEY)) || []; } catch(e){ return []; }
 }
 function saveScoreLocal(name, floor){
   let board = loadBoard();
   board.push({ name, floor, t: Date.now() });
-  // 每位玩家只保留最佳成績
   const best = {};
   board.forEach(e => {
     if(!best[e.name] || e.floor > best[e.name].floor) best[e.name] = e;
@@ -230,25 +293,23 @@ function deviceInfo(){
   else if(/Safari\//.test(ua)) browser = "Safari";
   return type + " · " + os + " · " + browser;
 }
-async function submitScore(name, floor){
+async function submitScore(name, floor, mode){
   if(!SHEET_API){ saveScoreLocal(name, floor); return; }
   try{
     await fetch(SHEET_API, {
       method: "POST",
-      mode: "no-cors",                       // Apps Script 需要這個模式
-      body: JSON.stringify({ name, floor, device: deviceInfo() })
+      mode: "no-cors",
+      body: JSON.stringify({ name, floor, device: deviceInfo(), mode: mode || "單人" })
     });
-  }catch(e){ /* 離線時略過,不影響遊戲 */ }
+  }catch(e){ /* 離線時略過 */ }
 }
 async function fetchBoard(){
   if(!SHEET_API) return loadBoard();
   try{
     const r = await fetch(SHEET_API + "?t=" + Date.now());
     return await r.json();
-  }catch(e){ return null; }                  // null = 連線失敗
+  }catch(e){ return null; }
 }
-const BOARD_CACHE_KEY = "stairs_board_cache";
-// 把本局成績合併進榜單(每人只留最佳),不必等伺服器寫入完成
 function mergeBoard(board, current){
   let all = board.slice();
   if(current) all.push({ name: current.name, floor: current.floor, t: Date.now() });
@@ -263,13 +324,12 @@ async function loadBoardArea(current, limit){
   if(!el) return;
   const render = board => {
     const el2 = document.getElementById("boardArea");
-    if(!el2) return;                         // 畫面已切換就不更新
+    if(!el2) return;
     let b = mergeBoard(board, current);
     if(limit) b = b.slice(0, limit);
     el2.innerHTML = b.length ? boardHTML(b, current)
       : '<p style="font-size:13px;opacity:.6;">還沒有人留下紀錄,快來搶頭香!</p>';
   };
-  // 先立刻顯示上次的榜單(秒開),再背景抓最新資料更新
   let cached = [];
   try{ cached = JSON.parse(storeGet(BOARD_CACHE_KEY)) || []; }catch(e){}
   if(cached.length) render(cached);
@@ -299,33 +359,27 @@ function boardHTML(board, current){
   return '<table class="rank"><tr><th colspan="3">🏆 排行榜</th></tr>' + rows + "</table>";
 }
 function escapeHTML(s){
-  return s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 }
 
-function reset(){
-  player = { x: W/2 - 13, y: 140, w: 26, h: 30, vx:0, vy:0, onPlat:null, face:1, squash:0 };
-  plats = [];
-  scrollSpeed = 1.4;
-  depth = 0; floorCount = 0;
-  hp = MAX_HP; invul = 0; shake = 0; time = 0;
-  lastThemeIdx = 0; themeMsg = ""; themeMsgT = 0;
-  bgCur = THEMES[0].bg.slice(); ceilCur = THEMES[0].ceil.slice();
-  // 初始平台:一塊在腳下,其餘往下排
-  plats.push(makePlat(W/2 - PLAT_W/2, 200, TYPES.NORMAL));
-  spawnY = 200;
-  while(spawnY < H + 120){
-    spawnY += rand(70, 110);
-    plats.push(makePlat(rand(10, W - PLAT_W - 10), spawnY, randomType()));
-  }
+// ----- 種子亂數與地圖生成(多人同圖的基礎) -----
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
 }
+const rand = (a,b) => a + Math.random()*(b-a);          // 視覺特效用,不影響地圖
+const srand = (a,b) => a + platRng()*(b-a);             // 地圖專用的種子亂數
 
-function makePlat(x, y, type){
-  return { x, y, w:PLAT_W, h:PLAT_H, type, broken:false, breakT:0, beltPhase:0, springT:0, landed:false };
+function makePlat(x, wy, type){
+  return { x, wy, w:PLAT_W, h:PLAT_H, type, broken:false, breakT:0, beltPhase:0, springT:0, landed:false };
 }
-
-function randomType(){
-  const hard = Math.min(0.5, floorCount / 250);   // 越深越難
-  const r = Math.random();
+function platTypeByIndex(n){
+  const hard = Math.min(0.5, n / 250);   // 越深越難
+  const r = platRng();
   if(r < 0.42 - hard*0.3) return TYPES.NORMAL;
   if(r < 0.58) return TYPES.SPIKE;
   if(r < 0.70) return TYPES.BELT_L;
@@ -333,14 +387,48 @@ function randomType(){
   if(r < 0.93) return TYPES.FRAGILE;
   return TYPES.SPRING;
 }
+// 確保平台已生成到指定世界深度(每塊平台固定消耗 3 個亂數,保證跨裝置一致)
+function ensurePlats(uptoWY){
+  while(nextPlatWY < uptoWY){
+    nextPlatWY += srand(70, 112);
+    const x = srand(10, W - PLAT_W - 10);
+    plats.push(makePlat(x, nextPlatWY, platTypeByIndex(nextPlatIdx)));
+    nextPlatIdx++;
+  }
+}
 
-const rand = (a,b) => a + Math.random()*(b-a);
+function reset(mode, seed){
+  gameMode = mode || "single";
+  mapSeed = (seed === undefined || seed === null) ? Math.floor(Math.random()*2147483647) : seed;
+  platRng = mulberry32(mapSeed);
+  player = { x: W/2 - 13, wy: 140, w: 26, h: 30, vx:0, vy:0, onPlat:null, face:1, squash:0 };
+  plats = [];
+  scrollSpeed = 1.4;
+  depth = 0; floorCount = 0;
+  hp = MAX_HP; invul = 0; shake = 0; time = 0;
+  lastThemeIdx = 0; themeMsg = ""; themeMsgT = 0;
+  bgCur = THEMES[0].bg.slice(); ceilCur = THEMES[0].ceil.slice();
+  // 第 0 塊平台固定在腳下,其餘由種子生成
+  plats.push(makePlat(W/2 - PLAT_W/2, 200, TYPES.NORMAL));
+  nextPlatWY = 200; nextPlatIdx = 1;
+  ensurePlats(H + 120);
+  mpBoardEl.innerHTML = "";
+  spectateBar.style.display = "none";
+}
 
 // ----- 輸入 -----
 addEventListener("keydown", e => {
   if(e.target && e.target.tagName === "INPUT"){
-    if(e.code === "Enter") goCharSelect();
-    return;                                  // 打字時不觸發遊戲按鍵
+    if(e.code === "Enter"){
+      const btn = document.getElementById("enterBtn") || document.getElementById("joinBtn");
+      if(btn) btn.click();
+    }
+    return;
+  }
+  if(state === "spectate"){
+    if(e.code === "ArrowLeft" || e.code === "KeyA") switchSpectate(-1);
+    if(e.code === "ArrowRight" || e.code === "KeyD") switchSpectate(1);
+    return;
   }
   if(e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
   if(e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
@@ -351,47 +439,40 @@ addEventListener("keyup", e => {
   if(e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
   if(e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
 });
-function bindPad(id, key){
+function bindPad(id, key, dir){
   const el = document.getElementById(id);
-  const on = e => { e.preventDefault(); keys[key] = true; };
+  const on = e => {
+    e.preventDefault();
+    if(state === "spectate"){ switchSpectate(dir); return; }
+    keys[key] = true;
+  };
   const off = e => { e.preventDefault(); keys[key] = false; };
   el.addEventListener("pointerdown", on);
   el.addEventListener("pointerup", off);
   el.addEventListener("pointerleave", off);
   el.addEventListener("pointercancel", off);
 }
-bindPad("leftPad","left"); bindPad("rightPad","right");
-startBtn.addEventListener("click", startGame);
+bindPad("leftPad","left",-1); bindPad("rightPad","right",1);
 cvs.addEventListener("pointerdown", () => { if(state === "dead") startGame(); });
+document.getElementById("pauseBtn").addEventListener("click", () => {
+  if(gameMode === "multi"){ mpRequestPause(); }
+  else if(state === "play" || state === "paused") togglePause();
+});
+document.getElementById("specPrev").addEventListener("click", () => switchSpectate(-1));
+document.getElementById("specNext").addEventListener("click", () => switchSpectate(1));
 
+// ----- 單人流程 -----
 function startGame(){
   if(!playerName){ showMenu(); return; }
-  reset();
+  reset("single");
   state = "play";
   overlay.classList.add("hidden");
+  overlay.classList.remove("lite");
 }
-
-// 第一頁按「進入遊戲」:確認名字後前往選角頁
-function goCharSelect(){
-  const input = document.getElementById("nameInput");
-  if(input){
-    const name = input.value.trim();
-    if(!name){
-      document.getElementById("nameErr").textContent = "請先輸入名字才能開始喔!";
-      input.focus();
-      return;
-    }
-    playerName = name;
-    storeSet(NAME_KEY, name);
-  }
-  if(!playerName) return;
-  showCharSelect();
-}
-
 function togglePause(){
   if(state === "play"){
     state = "paused";
-    keys.left = keys.right = false;          // 放開方向鍵,避免恢復時暴衝
+    keys.left = keys.right = false;
     overlay.classList.remove("hidden");
     overlay.innerHTML =
       '<h1>暫停中</h1>' +
@@ -408,9 +489,6 @@ function togglePause(){
     overlay.classList.add("hidden");
   }
 }
-document.getElementById("pauseBtn").addEventListener("click", togglePause);
-
-// ----- 更新 -----
 function damage(n){
   if(invul > 0) return;
   hp = Math.max(0, hp - n);
@@ -418,7 +496,9 @@ function damage(n){
   if(hp <= 0) die();
 }
 function heal(n){ hp = Math.min(MAX_HP, hp + n); }
+
 function die(){
+  if(gameMode === "multi"){ mpDie(); return; }
   state = "dead";
   overlay.classList.remove("hidden");
   overlay.innerHTML =
@@ -430,15 +510,23 @@ function die(){
     '<button id="switchBtn" class="linkBtn">變更玩家</button>';
   document.getElementById("againBtn").addEventListener("click", startGame);
   document.getElementById("switchBtn").addEventListener("click", () => showMenu(true));
-  // 上傳成績與讀取排行榜同時進行;本局成績先在本地合併進榜單,不用等伺服器
-  submitScore(playerName, floorCount);
+  submitScore(playerName, floorCount, "單人");
   loadBoardArea({ name: playerName, floor: floorCount });
 }
+function praise(n){
+  if(n >= 100) return "太神了!你是下樓梯之王 👑";
+  if(n >= 60)  return "超強!腳法行雲流水 🔥";
+  if(n >= 30)  return "不錯喔,再深一點就是高手了!";
+  if(n >= 10)  return "熱身完畢,再來一場吧!";
+  return "別灰心,小心尖刺再試一次!";
+}
 
-// 第一頁:標題、歡迎/輸入名字、遊戲講解、排行榜、進入遊戲
+// ----- 頁面:起始頁 → 模式選擇 → (單人)選角 / (多人)入口 -----
 function showMenu(forceInput){
-  state = "menu";
+  state = "menu"; gameMode = "single";
+  mpLeaveRoom();
   overlay.classList.remove("hidden");
+  overlay.classList.remove("lite");
   const saved = storeGet(NAME_KEY) || "";
   const useWelcome = saved && !forceInput;
   const nameUI = useWelcome
@@ -456,15 +544,46 @@ function showMenu(forceInput){
     '<div id="boardArea"></div>' +
     '<button class="start" id="enterBtn">進入遊戲</button>';
   playerName = useWelcome ? saved : "";
-  document.getElementById("enterBtn").addEventListener("click", goCharSelect);
+  document.getElementById("enterBtn").addEventListener("click", goModeSelect);
   const switchBtn = document.getElementById("switchBtn");
   if(switchBtn) switchBtn.addEventListener("click", () => showMenu(true));
   const input = document.getElementById("nameInput");
   if(input) input.focus();
-  loadBoardArea(null, 3);                    // 起始頁只顯示前三名
+  loadBoardArea(null, 3);
 }
-
-// 第二頁:選擇角色、開始遊戲
+function goModeSelect(){
+  const input = document.getElementById("nameInput");
+  if(input){
+    const name = input.value.trim();
+    if(!name){
+      document.getElementById("nameErr").textContent = "請先輸入名字才能開始喔!";
+      input.focus();
+      return;
+    }
+    playerName = name;
+    storeSet(NAME_KEY, name);
+  }
+  if(!playerName) return;
+  showModeSelect();
+}
+function showModeSelect(){
+  state = "menu";
+  overlay.classList.remove("hidden");
+  overlay.innerHTML =
+    '<h1>選擇模式</h1>' +
+    '<button class="modeBtn" id="singleBtn" style="background:#1D9E75;">🧍 單人模式<small>挑戰自己的最佳紀錄</small></button>' +
+    '<button class="modeBtn" id="multiBtn" style="background:#7F77DD;">👥 多人模式<small>和朋友同場比賽,看誰下得深</small></button>' +
+    '<button id="backBtn" class="linkBtn">← 返回</button>';
+  document.getElementById("singleBtn").addEventListener("click", () => showCharSelect());
+  document.getElementById("multiBtn").addEventListener("click", () => {
+    if(!fbReady()){
+      alert("多人模式尚未啟用:需要先完成 Firebase 設定(請參考設定教學),或檢查網路連線。");
+      return;
+    }
+    showMpEntry();
+  });
+  document.getElementById("backBtn").addEventListener("click", () => showMenu());
+}
 function showCharSelect(){
   state = "menu";
   overlay.classList.remove("hidden");
@@ -473,58 +592,27 @@ function showCharSelect(){
     '<div id="charGrid"></div>' +
     '<button class="start" id="startBtn">開始遊戲</button>' +
     '<button id="backBtn" class="linkBtn">← 返回上一頁</button>';
-  buildCharGrid();
-  document.getElementById("startBtn").addEventListener("click", startGame);
-  document.getElementById("backBtn").addEventListener("click", () => showMenu());
-}
-
-function buildCharGrid(){
-  const grid = document.getElementById("charGrid");
-  if(!grid) return;
-  CHARS.forEach((c, i) => {
-    const cell = document.createElement("button");
-    cell.className = "charCell" + (i === selectedChar ? " sel" : "");
-    const cv = document.createElement("canvas");
-    cv.width = 52; cv.height = 56;
-    const g = cv.getContext("2d");
-    g.translate((52 - 26*1.25)/2, (56 - 30*1.25)/2 + 3);
-    g.scale(1.25, 1.25);
-    renderChar(g, c, 1, 0);
-    const label = document.createElement("span");
-    label.textContent = c.name;
-    cell.appendChild(cv);
-    cell.appendChild(label);
-    cell.addEventListener("click", () => {
-      selectedChar = i;
-      storeSet(CHAR_KEY, String(i));
-      grid.querySelectorAll(".charCell").forEach((el, j) => el.classList.toggle("sel", j === i));
-    });
-    grid.appendChild(cell);
+  buildCharGrid(document.getElementById("charGrid"), {
+    selected: () => selectedChar,
+    onPick: i => { selectedChar = i; storeSet(CHAR_KEY, String(i)); }
   });
-}
-function praise(n){
-  if(n >= 100) return "太神了!你是下樓梯之王 👑";
-  if(n >= 60)  return "超強!腳法行雲流水 🔥";
-  if(n >= 30)  return "不錯喔,再深一點就是高手了!";
-  if(n >= 10)  return "熱身完畢,再來一場吧!";
-  return "別灰心,小心尖刺再試一次!";
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  document.getElementById("backBtn").addEventListener("click", () => showModeSelect());
 }
 
+// ----- 更新(世界座標:wy 為世界深度,depth 為鏡頭位置) -----
 function update(){
   time++;
   if(invul > 0) invul--;
   if(shake > 0) shake *= 0.85;
   if(player.squash > 0) player.squash *= 0.85;
 
-  // 難度:速度隨層數提升(上限 3.6)
   scrollSpeed = 1.4 + Math.min(2.2, floorCount * 0.022);
 
-  // 水平移動
   player.vx = 0;
   if(keys.left){ player.vx = -MOVE_SPEED; player.face = -1; }
   if(keys.right){ player.vx = MOVE_SPEED; player.face = 1; }
 
-  // 站在平台上時跟著平台效果
   const p = player.onPlat;
   if(p){
     if(p.type === TYPES.BELT_L) player.vx -= 2.2;
@@ -534,27 +622,22 @@ function update(){
   player.x += player.vx;
   player.x = Math.max(2, Math.min(W - player.w - 2, player.x));
 
-  // 重力(隨關卡同步加強,確保掉落速度永遠追得上畫面捲動)
   const g = GRAVITY * (1 + (scrollSpeed - 1.4) * 0.5);
   player.vy += g;
   const vyMax = 12 + (scrollSpeed - 1.4) * 2.5;
   if(player.vy > vyMax) player.vy = vyMax;
-  const prevBottom = player.y + player.h;
-  player.y += player.vy;
+  const prevBottom = player.wy + player.h;
+  player.wy += player.vy;
 
-  // 平台整體上移(等同玩家往下)
-  for(const pl of plats) pl.y -= scrollSpeed;
-  player.y -= scrollSpeed;
-  depth += scrollSpeed;
+  depth += scrollSpeed;   // 鏡頭持續下移
 
-  // 碰撞:只在下落時著地
   player.onPlat = null;
   for(const pl of plats){
     if(pl.broken) continue;
     const overX = player.x + player.w > pl.x + 4 && player.x < pl.x + pl.w - 4;
-    const crossY = prevBottom - scrollSpeed <= pl.y + 6 && player.y + player.h >= pl.y;
+    const crossY = prevBottom <= pl.wy + 6 && player.wy + player.h >= pl.wy;
     if(player.vy >= 0 && overX && crossY){
-      player.y = pl.y - player.h;
+      player.wy = pl.wy - player.h;
       player.vy = 0;
       player.onPlat = pl;
       if(!pl.landed){
@@ -573,7 +656,6 @@ function update(){
     }
   }
 
-  // 脆弱地板倒數
   for(const pl of plats){
     if(pl.breakT > 0){
       pl.breakT--;
@@ -583,23 +665,18 @@ function update(){
     pl.beltPhase += 0.15;
   }
 
-  // 天花板尖刺
-  if(player.y < CEIL_H){
-    player.y = CEIL_H;
+  // 天花板尖刺(以鏡頭為基準)
+  if(player.wy - depth < CEIL_H){
+    player.wy = depth + CEIL_H;
     player.vy = 2;
     damage(2);
   }
 
   // 掉出畫面
-  if(player.y > H + 40) { hp = 0; die(); return; }
+  if(player.wy - depth > H + 40) { hp = 0; die(); return; }
 
-  // 移除超出畫面的平台、生成新平台
-  plats = plats.filter(pl => pl.y > -40);
-  spawnY -= scrollSpeed;
-  while(spawnY < H + 60){
-    spawnY += rand(70, 112);
-    plats.push(makePlat(rand(10, W - PLAT_W - 10), spawnY, randomType()));
-  }
+  plats = plats.filter(pl => pl.wy > depth - 80);
+  ensurePlats(depth + H + 80);
 
   floorEl.textContent = playerName + " · 第 " + floorCount + " 層";
   renderHP();
@@ -618,8 +695,10 @@ function renderHP(){
 }
 
 function drawPlat(pl){
-  const {x, y, w, h} = pl;
   if(pl.broken) return;
+  const x = pl.x, w = pl.w, h = pl.h;
+  const y = pl.wy - depth;
+  if(y < -40 || y > H + 40) return;
   ctx.save();
   if(pl.breakT > 0) ctx.translate(rand(-2,2), rand(-1,1));
 
@@ -648,7 +727,6 @@ function drawPlat(pl){
     case TYPES.BELT_R: {
       ctx.fillStyle = "#2f6f6f";
       ctx.fillRect(x, y, w, h);
-      ctx.fillStyle = "#9be8e0";
       const dir = pl.type === TYPES.BELT_R ? 1 : -1;
       const off = (pl.beltPhase * 6 * dir) % 18;
       for(let i=-18;i<w+18;i+=18){
@@ -692,7 +770,6 @@ function drawPlat(pl){
 }
 
 // ----- 角色系統:16 款角色 -----
-const CHAR_KEY = "stairs_char";
 const CHARS = [
   { name:"小黃",   body:"#ffd166", skin:"#ffe0a3", hair:"#4a2c14", shoe:"#c0392b", acc:"none",     accColor:"" },
   { name:"草莓妹", body:"#ff8fab", skin:"#ffe0c2", hair:"#7a3b2e", shoe:"#b23a48", acc:"bow",      accColor:"#ff4d6d" },
@@ -714,7 +791,7 @@ const CHARS = [
 let selectedChar = Math.min(CHARS.length - 1, Math.max(0, parseInt(storeGet(CHAR_KEY)) || 0));
 
 function drawAccessory(g, c, face){
-  const hx = 13, hy = 9;                     // 頭部中心(角色寬 26)
+  const hx = 13;
   g.fillStyle = c.accColor; g.strokeStyle = c.accColor;
   switch(c.acc){
     case "bow": {
@@ -772,7 +849,7 @@ function drawAccessory(g, c, face){
       break;
     case "ninja":
       g.fillRect(hx-10, 3, 20, 4);
-      g.fillRect(hx - face*10 - (face === 1 ? 4 : 0), 4, 4, 7); // 頭巾尾巴
+      g.fillRect(hx - face*10 - (face === 1 ? 4 : 0), 4, 4, 7);
       break;
     case "headband":
       g.fillRect(hx-10, 3.5, 20, 3.5);
@@ -796,11 +873,11 @@ function drawAccessory(g, c, face){
       g.fill();
       break;
     case "pirate": {
-      g.beginPath(); g.arc(hx, 6, 10.5, Math.PI, 0); g.fill(); // 頭巾
+      g.beginPath(); g.arc(hx, 6, 10.5, Math.PI, 0); g.fill();
       const ex = hx + face*3;
       g.lineWidth = 1.5;
-      g.beginPath(); g.moveTo(hx-10, 8.5); g.lineTo(hx+10, 6); g.stroke(); // 眼罩帶
-      g.beginPath(); g.arc(ex+3, 10, 3, 0, Math.PI*2); g.fill();           // 眼罩
+      g.beginPath(); g.moveTo(hx-10, 8.5); g.lineTo(hx+10, 6); g.stroke();
+      g.beginPath(); g.arc(ex+3, 10, 3, 0, Math.PI*2); g.fill();
       break;
     }
     case "sprout":
@@ -811,8 +888,6 @@ function drawAccessory(g, c, face){
       break;
   }
 }
-
-// 在指定的繪圖環境畫出一個角色(遊戲中與選角預覽共用)
 function renderChar(g, c, face, step){
   const w = 26, h = 30;
   g.fillStyle = c.body;
@@ -829,11 +904,10 @@ function renderChar(g, c, face, step){
   g.fillRect(w-11, h-4-step*0.5, 7, 4);
   drawAccessory(g, c, face);
 }
-
 function drawPlayer(){
-  if(invul > 0 && Math.floor(time/4) % 2 === 0) return; // 受傷閃爍
+  if(invul > 0 && Math.floor(time/4) % 2 === 0) return;
   const sq = player.squash;
-  const px = player.x, py = player.y, w = player.w, h = player.h;
+  const px = player.x, py = player.wy - depth, w = player.w, h = player.h;
   ctx.save();
   ctx.translate(px + w/2, py + h);
   ctx.scale(1 + sq*0.25, 1 - sq*0.25);
@@ -842,7 +916,6 @@ function drawPlayer(){
   renderChar(ctx, CHARS[selectedChar], player.face, step);
   ctx.restore();
 }
-
 function roundRectG(g, x,y,w,h,r){
   g.beginPath();
   g.moveTo(x+r,y);
@@ -852,9 +925,48 @@ function roundRectG(g, x,y,w,h,r){
   g.arcTo(x,y,x+w,y,r);
   g.closePath();
 }
-function roundRect(x,y,w,h,r){ roundRectG(ctx, x,y,w,h,r); }
+function charIcon(c, scale){
+  const cv = document.createElement("canvas");
+  const s = scale || 1.25;
+  cv.width = Math.round(26*s) + 14;
+  cv.height = Math.round(30*s) + 14;
+  const g = cv.getContext("2d");
+  g.translate((cv.width - 26*s)/2, (cv.height - 30*s)/2 + 3);
+  g.scale(s, s);
+  renderChar(g, c, 1, 0);
+  return cv;
+}
+// 通用角色格子:opts = { selected:fn, onPick:fn(i), claims:{idx:pid} (多人時鎖定), myPid }
+function buildCharGrid(grid, opts){
+  if(!grid) return;
+  grid.innerHTML = "";
+  const claims = opts.claims || null;
+  CHARS.forEach((c, i) => {
+    const cell = document.createElement("button");
+    const claimedBy = claims ? claims[i] : null;
+    const takenByOther = claimedBy && claimedBy !== opts.myPid;
+    let cls = "charCell";
+    if(opts.selected() === i && !takenByOther) cls += " sel";
+    if(takenByOther) cls += " taken";
+    cell.className = cls;
+    cell.appendChild(charIcon(c, 1.25));
+    const label = document.createElement("span");
+    label.textContent = takenByOther && opts.names && opts.names[claimedBy]
+      ? opts.names[claimedBy] : c.name;
+    cell.appendChild(label);
+    cell.addEventListener("click", () => {
+      if(takenByOther) return;
+      opts.onPick(i);
+      if(!claims){ // 單人:本地重繪選取狀態
+        grid.querySelectorAll(".charCell").forEach((el, j) =>
+          el.classList.toggle("sel", j === opts.selected()));
+      }
+    });
+    grid.appendChild(cell);
+  });
+}
 
-// ----- 背景主題:每 THEME_EVERY 層換一個場景,循環使用 -----
+// ----- 背景主題 -----
 const THEME_EVERY = 10;
 const THEMES = [
   { name:"紫晶磚牆", bg:[36,24,69],  ceil:[58,42,94],   pattern:"brick" },
@@ -865,12 +977,15 @@ const THEMES = [
 ];
 let bgCur = THEMES[0].bg.slice(), ceilCur = THEMES[0].ceil.slice();
 let lastThemeIdx = 0, themeMsg = "", themeMsgT = 0;
-
+function viewFloor(){
+  if(state === "spectate" && mp && mp.specTarget && mp.players[mp.specTarget])
+    return mp.players[mp.specTarget].floor || 0;
+  return floorCount;
+}
 function currentTheme(){
-  return THEMES[Math.floor(floorCount / THEME_EVERY) % THEMES.length];
+  return THEMES[Math.floor(viewFloor() / THEME_EVERY) % THEMES.length];
 }
 const rgb = c => "rgb(" + (c[0]|0) + "," + (c[1]|0) + "," + (c[2]|0) + ")";
-
 function drawPattern(type){
   const off = depth % 48;
   switch(type){
@@ -929,15 +1044,63 @@ function drawPattern(type){
   }
 }
 
+function drawGhosts(){
+  if(gameMode !== "multi" || !mp) return;
+  ctx.save();
+  ctx.font = "bold 11px 'Microsoft JhengHei', sans-serif";
+  ctx.textAlign = "center";
+  for(const pid in mp.ghostPos){
+    if(pid === mp.myId) continue;
+    const pdata = mp.players[pid];
+    if(!pdata) continue;
+    const gp = mp.ghostPos[pid];
+    const isSpecTarget = state === "spectate" && pid === mp.specTarget;
+    const sy = gp.wy - depth;
+    if(pdata.alive === false && !gp.tombT) gp.tombT = 90;
+    if(gp.tombT){
+      gp.tombT--;
+      if(sy > -40 && sy < H + 40 && gp.tombT > 0){
+        ctx.globalAlpha = Math.min(1, gp.tombT / 45);
+        ctx.fillStyle = "#9aa0b5";
+        roundRectG(ctx, gp.x + 3, sy + 8, 20, 22, 6); ctx.fill();
+        ctx.fillRect(gp.x + 9, sy + 28, 8, 4);
+        ctx.fillStyle = "#5b6070";
+        ctx.fillText("✝", gp.x + 13, sy + 23);
+        ctx.globalAlpha = 1;
+      }
+      continue;
+    }
+    if(sy > -40 && sy < H + 40){
+      ctx.save();
+      ctx.globalAlpha = isSpecTarget ? 1 : 0.5;
+      ctx.translate(gp.x, sy);
+      renderChar(ctx, CHARS[pdata.char || 0], 1, 0);
+      ctx.restore();
+      ctx.fillStyle = isSpecTarget ? "#ffc83d" : "rgba(255,255,255,.85)";
+      ctx.strokeStyle = "rgba(0,0,0,.6)"; ctx.lineWidth = 3;
+      ctx.strokeText(pdata.name || "", gp.x + 13, sy - 6);
+      ctx.fillText(pdata.name || "", gp.x + 13, sy - 6);
+    } else {
+      // 視野外指示器
+      const above = sy <= -40;
+      const iy = above ? CEIL_H + 26 : H - 14;
+      ctx.fillStyle = "rgba(255,255,255,.75)";
+      ctx.strokeStyle = "rgba(0,0,0,.6)"; ctx.lineWidth = 3;
+      const txt = (above ? "▲ " : "▼ ") + (pdata.name || "") + " " + (pdata.floor || 0);
+      ctx.strokeText(txt, W - 60, iy);
+      ctx.fillText(txt, W - 60, iy);
+    }
+  }
+  ctx.restore();
+}
+
 function draw(){
-  // 顏色朝目前主題平滑過渡
   const th = currentTheme();
   for(let i=0;i<3;i++){
     bgCur[i]   += (th.bg[i]   - bgCur[i])   * 0.04;
     ceilCur[i] += (th.ceil[i] - ceilCur[i]) * 0.04;
   }
-  // 進入新場景時顯示提示
-  const idx = Math.floor(floorCount / THEME_EVERY) % THEMES.length;
+  const idx = Math.floor(viewFloor() / THEME_EVERY) % THEMES.length;
   if(state === "play" && idx !== lastThemeIdx){
     lastThemeIdx = idx;
     themeMsg = "進入 " + th.name;
@@ -947,15 +1110,14 @@ function draw(){
   ctx.save();
   if(shake > 0.5) ctx.translate(rand(-shake,shake), rand(-shake,shake));
 
-  // 背景與材質
   ctx.fillStyle = rgb(bgCur);
   ctx.fillRect(-10,-10,W+20,H+20);
   drawPattern(th.pattern);
 
   for(const pl of plats) drawPlat(pl);
-  drawPlayer();
+  drawGhosts();
+  if(state !== "spectate") drawPlayer();
 
-  // 天花板尖刺
   ctx.fillStyle = rgb(ceilCur);
   ctx.fillRect(-10, -10, W+20, CEIL_H-8);
   ctx.fillStyle = "#cfd2e8";
@@ -967,7 +1129,6 @@ function draw(){
     ctx.fill();
   }
 
-  // 場景切換提示文字
   if(themeMsgT > 0){
     themeMsgT--;
     const a = Math.min(1, themeMsgT / 40);
@@ -985,13 +1146,589 @@ function draw(){
   ctx.restore();
 }
 
+// =====================================================================
+// 多人模式(Firebase Realtime Database)
+// =====================================================================
+let fdb = null, serverOffset = 0;
+let mp = null;   // 房間狀態
+
+function fbReady(){
+  if(fdb) return true;
+  if(!FIREBASE_CONFIG || typeof firebase === "undefined") return false;
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fdb = firebase.database();
+    fdb.ref(".info/serverTimeOffset").on("value", s => { serverOffset = s.val() || 0; });
+    return true;
+  }catch(e){ console.error(e); return false; }
+}
+const sNow = () => Date.now() + serverOffset;
+function myPid(){
+  let id = storeGet(PID_KEY);
+  if(!id){ id = "p" + Math.random().toString(36).slice(2, 10); storeSet(PID_KEY, id); }
+  return id;
+}
+const roomCodeGen = () => String(Math.floor(1000 + Math.random()*9000));
+
+// ----- 多人入口頁 -----
+function showMpEntry(){
+  state = "menu";
+  mpLeaveRoom();
+  overlay.classList.remove("hidden");
+  overlay.innerHTML =
+    '<h1>多人模式</h1>' +
+    '<button class="modeBtn" id="createBtn" style="background:#1D9E75;">🏠 建立房間<small>產生房號,邀請朋友加入</small></button>' +
+    '<div style="display:flex;gap:8px;align-items:center;">' +
+      '<input class="txtInput" id="codeInput" maxlength="4" inputmode="numeric" placeholder="輸入 4 位房號" style="width:170px;">' +
+      '<button class="start" id="joinBtn" style="margin-top:0;padding:11px 22px;">加入</button>' +
+    '</div>' +
+    '<p class="errMsg" id="mpErr"></p>' +
+    '<button class="modeBtn" id="quickBtn" style="background:#D85A30;">⚡ 快速配對<small>自動加入公開房間</small></button>' +
+    '<button id="backBtn" class="linkBtn">← 返回模式選擇</button>';
+  document.getElementById("createBtn").addEventListener("click", () => mpCreateRoom(false));
+  document.getElementById("joinBtn").addEventListener("click", () => {
+    const code = document.getElementById("codeInput").value.trim();
+    if(!/^\d{4}$/.test(code)){
+      document.getElementById("mpErr").textContent = "房號是 4 位數字喔!";
+      return;
+    }
+    mpJoinRoom(code);
+  });
+  document.getElementById("quickBtn").addEventListener("click", mpQuickMatch);
+  document.getElementById("backBtn").addEventListener("click", () => showModeSelect());
+}
+function mpError(msg){
+  const el = document.getElementById("mpErr");
+  if(el) el.textContent = msg; else alert(msg);
+}
+
+// ----- 建房 / 加房 / 快配 -----
+async function mpCreateRoom(isPublic){
+  const code = roomCodeGen();
+  const ref = fdb.ref("rooms/" + code);
+  const snap = await ref.child("status").once("value");
+  if(snap.exists()){ mpCreateRoom(isPublic); return; }  // 撞號重抽
+  await ref.set({
+    status: "waiting",
+    public: !!isPublic,
+    open: !!isPublic,
+    createdAt: firebase.database.ServerValue.TIMESTAMP
+  });
+  mpEnterRoom(code);
+}
+async function mpJoinRoom(code){
+  const ref = fdb.ref("rooms/" + code);
+  const snap = await ref.once("value");
+  const room = snap.val();
+  if(!room){ mpError("找不到這個房間,確認房號再試一次。"); return; }
+  if(room.status === "playing" || room.status === "ended"){
+    mpError("這場遊戲已經開始了,等下一場吧!"); return;
+  }
+  const count = room.players ? Object.keys(room.players).length : 0;
+  if(count >= 8){ mpError("房間已滿(8 人上限)。"); return; }
+  mpEnterRoom(code);
+}
+async function mpQuickMatch(){
+  mpError("正在尋找公開房間…");
+  try{
+    const snap = await fdb.ref("rooms").orderByChild("open").equalTo(true).limitToFirst(10).once("value");
+    let target = null;
+    snap.forEach(child => {
+      const r = child.val();
+      const count = r.players ? Object.keys(r.players).length : 0;
+      if(!target && (r.status === "waiting" || r.status === "countdown") && count < 8){
+        target = child.key;
+      }
+    });
+    if(target) mpEnterRoom(target);
+    else mpCreateRoom(true);   // 沒有可加入的公開房,自己開一間
+  }catch(e){
+    console.error(e);
+    mpError("配對失敗,請稍後再試。");
+  }
+}
+
+// ----- 進房與大廳 -----
+function mpEnterRoom(code){
+  gameMode = "multi";
+  const id = myPid();
+  mp = {
+    code, myId: id,
+    ref: fdb.ref("rooms/" + code),
+    players: {}, claims: {}, results: {},
+    status: "waiting", seed: null, startAt: 0, isPublic: false,
+    pause: null, resumeAt: 0,
+    ghostPos: {}, lastKnown: {},
+    specTarget: null, myReady: false, started: false,
+    pubTimer: null, subs: []
+  };
+  const meRef = mp.ref.child("players/" + id);
+  meRef.set({
+    name: playerName, char: -1, ready: false, alive: true,
+    floor: 0, x: W/2, wy: 140, depth: 0,
+    joinedAt: firebase.database.ServerValue.TIMESTAMP
+  });
+  meRef.onDisconnect().remove();
+  // 訂閱房間
+  const sub = (path, cb) => {
+    const r = path ? mp.ref.child(path) : mp.ref;
+    r.on("value", cb);
+    mp.subs.push(() => r.off("value", cb));
+  };
+  sub("players", s => { if(mp){ mpOnPlayers(s.val() || {}); } });
+  sub("claims",  s => { if(mp){ mp.claims = s.val() || {}; if(state === "menu") renderLobby(); } });
+  sub("results", s => { if(mp){ mp.results = s.val() || {}; } });
+  const stRef = mp.ref.child("status");
+  const stCb = s => { if(mp) mpOnStatus(s.val()); };
+  stRef.on("value", stCb); mp.subs.push(() => stRef.off("value", stCb));
+  const seedRef = mp.ref.child("seed");
+  const seedCb = s => { if(mp) mp.seed = s.val(); };
+  seedRef.on("value", seedCb); mp.subs.push(() => seedRef.off("value", seedCb));
+  const saRef = mp.ref.child("startAt");
+  const saCb = s => { if(mp) mp.startAt = s.val() || 0; };
+  saRef.on("value", saCb); mp.subs.push(() => saRef.off("value", saCb));
+  const pbRef = mp.ref.child("public");
+  const pbCb = s => { if(mp) mp.isPublic = !!s.val(); };
+  pbRef.on("value", pbCb); mp.subs.push(() => pbRef.off("value", pbCb));
+  const paRef = mp.ref.child("pause");
+  const paCb = s => { if(mp) mpOnPause(s.val()); };
+  paRef.on("value", paCb); mp.subs.push(() => paRef.off("value", paCb));
+  const raRef = mp.ref.child("resumeAt");
+  const raCb = s => { if(mp) mpOnResumeAt(s.val() || 0); };
+  raRef.on("value", raCb); mp.subs.push(() => raRef.off("value", raCb));
+  renderLobby();
+}
+function mpLeaveRoom(){
+  if(!mp) return;
+  const m = mp; mp = null;
+  m.subs.forEach(off => { try{ off(); }catch(e){} });
+  if(m.pubTimer) clearInterval(m.pubTimer);
+  const myChar = Object.keys(m.claims).find(i => m.claims[i] === m.myId);
+  if(myChar !== undefined) m.ref.child("claims/" + myChar).remove();
+  m.ref.child("players/" + m.myId).remove();
+  // 自己是最後一人就順手收掉房間
+  setTimeout(async () => {
+    try{
+      const s = await m.ref.child("players").once("value");
+      if(!s.exists()) m.ref.remove();
+    }catch(e){}
+  }, 500);
+  gameMode = "single";
+  mpBoardEl.innerHTML = "";
+  spectateBar.style.display = "none";
+}
+function mpIsHost(){
+  if(!mp) return false;
+  let host = null, minJoin = Infinity;
+  for(const pid in mp.players){
+    const j = mp.players[pid].joinedAt || 0;
+    if(j < minJoin){ minJoin = j; host = pid; }
+  }
+  return host === mp.myId;
+}
+function mpOnPlayers(players){
+  // 紀錄最後已知資料(斷線者也能進排名)
+  for(const pid in players){
+    mp.lastKnown[pid] = Object.assign({}, mp.lastKnown[pid], players[pid]);
+    if(!mp.ghostPos[pid]) mp.ghostPos[pid] = { x: players[pid].x || 0, wy: players[pid].wy || 0, tombT: 0 };
+  }
+  mp.players = players;
+  if(state === "menu") renderLobby();
+  // 公開房自動開賽規則(由房主執行)
+  if(mp.status === "waiting" && mp.isPublic && mpIsHost()){
+    const list = Object.values(players);
+    if(list.length >= 2 && list.every(p => p.ready && p.char >= 0)){
+      mpHostStart(list.length >= 8 ? 3500 : 10000);
+    }
+  }
+  // 倒數期間有新人加入 → 公開房重置倒數
+  if(mp.status === "countdown" && mp.isPublic && mpIsHost()){
+    const n = Object.keys(players).length;
+    if(mp.lastCount && n > mp.lastCount){
+      mp.ref.update({ startAt: sNow() + 10000 });
+    }
+    mp.lastCount = n;
+  } else {
+    mp.lastCount = Object.keys(players).length;
+  }
+  // 對戰中:檢查是否全員結束
+  if(mp.started && (state === "play" || state === "spectate" || state === "mppause")){
+    mpCheckMatchEnd();
+  }
+  // 觀戰目標若死亡或離開,換下一位
+  if(state === "spectate"){
+    const t = mp.players[mp.specTarget];
+    if(!t || t.alive === false) pickSpectateTarget();
+    updateSpectateMsg();
+  }
+}
+function mpOnStatus(status){
+  const prev = mp.status;
+  mp.status = status;
+  if(status === "countdown" && !mp.started){
+    mpBeginCountdown();
+  }
+  if(status === "waiting" && prev && prev !== "waiting"){
+    // 再來一場:回到大廳
+    mp.started = false;
+    if(mp.pubTimer){ clearInterval(mp.pubTimer); mp.pubTimer = null; }
+    mp.ref.child("players/" + mp.myId).update({ ready: false, alive: true, floor: 0 });
+    mp.ghostPos = {}; mp.results = {};
+    state = "menu";
+    spectateBar.style.display = "none";
+    mpBoardEl.innerHTML = "";
+    renderLobby();
+  }
+}
+
+// ----- 大廳畫面 -----
+function renderLobby(){
+  if(!mp || state !== "menu") return;
+  if(!document.getElementById("lobbyBox")){
+    overlay.classList.remove("hidden");
+    overlay.innerHTML =
+      '<div id="lobbyBox" style="display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;">' +
+      '</div>';
+  }
+  const box = document.getElementById("lobbyBox");
+  if(!box) return;
+  const players = mp.players || {};
+  const pids = Object.keys(players).sort((a,b) => (players[a].joinedAt||0) - (players[b].joinedAt||0));
+  const names = {}; pids.forEach(pid => names[pid] = players[pid].name);
+  const me = players[mp.myId] || {};
+  const isHost = mpIsHost();
+  const allReady = pids.length > 0 && pids.every(pid => players[pid].ready && players[pid].char >= 0);
+
+  let listHtml = "";
+  pids.forEach(pid => {
+    const p = players[pid];
+    listHtml += '<div class="lobbyRow" data-pid="' + pid + '">' +
+      '<span class="iconSlot" data-char="' + (p.char ?? -1) + '"></span>' +
+      '<span class="nm">' + escapeHTML(p.name || "?") + (pid === mp.myId ? "(你)" : "") + '</span>' +
+      (p.ready ? '<span class="rdy">✔ 已準備</span>' : '<span class="wait">選角色中…</span>') +
+      '</div>';
+  });
+
+  box.innerHTML =
+    '<h1 style="font-size:26px;">' + (mp.isPublic ? "公開房間" : "房間大廳") + '</h1>' +
+    '<div class="roomCode">' + mp.code + '</div>' +
+    '<p style="font-size:13px;opacity:.7;margin:0;">' +
+      (mp.isPublic ? "公開配對房・至少 2 人且全員準備後自動開賽" : "把房號告訴朋友,他們輸入就能加入") +
+    '</p>' +
+    '<div class="lobbyList">' + (listHtml || '<p style="opacity:.6;font-size:13px;">等待玩家加入…</p>') + '</div>' +
+    '<p style="margin:2px 0 0;font-size:14px;opacity:.85;">選擇你的角色(先搶先贏,不能重複)</p>' +
+    '<div id="charGrid"></div>' +
+    '<button class="start" id="readyBtn">' + (me.ready ? "取消準備" : "我準備好了") + '</button>' +
+    (!mp.isPublic && isHost
+      ? '<button class="start alt" id="hostStartBtn"' + (allReady && pids.length >= 1 ? "" : " disabled") + '>開始遊戲</button>'
+      : "") +
+    (!mp.isPublic && !isHost ? '<p style="font-size:13px;opacity:.6;">等待房主開始遊戲…</p>' : "") +
+    '<button id="leaveBtn" class="linkBtn">離開房間</button>';
+
+  // 畫成員頭像
+  box.querySelectorAll(".iconSlot").forEach(slot => {
+    const ci = parseInt(slot.getAttribute("data-char"));
+    if(ci >= 0) slot.appendChild(charIcon(CHARS[ci], 0.9));
+    else slot.textContent = "❓";
+  });
+  buildCharGrid(document.getElementById("charGrid"), {
+    selected: () => (players[mp.myId] ? players[mp.myId].char : -1),
+    claims: mp.claims, names, myPid: mp.myId,
+    onPick: i => mpClaimChar(i)
+  });
+  document.getElementById("readyBtn").addEventListener("click", () => {
+    const cur = mp.players[mp.myId] || {};
+    if(!cur.ready && (cur.char === undefined || cur.char < 0)){
+      alert("先選一個角色再準備喔!");
+      return;
+    }
+    mp.ref.child("players/" + mp.myId + "/ready").set(!cur.ready);
+  });
+  const hostBtn = document.getElementById("hostStartBtn");
+  if(hostBtn) hostBtn.addEventListener("click", () => mpHostStart(3500));
+  document.getElementById("leaveBtn").addEventListener("click", () => { mpLeaveRoom(); showMpEntry(); });
+}
+async function mpClaimChar(i){
+  const claimRef = mp.ref.child("claims/" + i);
+  const res = await claimRef.transaction(cur => {
+    if(cur === null || cur === mp.myId) return mp.myId;
+    return; // 已被別人佔走,放棄
+  });
+  if(res.committed && res.snapshot.val() === mp.myId){
+    // 釋放我原本佔的其他角色
+    for(const k in mp.claims){
+      if(mp.claims[k] === mp.myId && parseInt(k) !== i){
+        mp.ref.child("claims/" + k).remove();
+      }
+    }
+    claimRef.onDisconnect().remove();
+    mp.ref.child("players/" + mp.myId).update({ char: i });
+    storeSet(CHAR_KEY, String(i));
+  }
+}
+function mpHostStart(delayMs){
+  if(!mpIsHost() || !mp || mp.status !== "waiting") return;
+  mp.ref.update({
+    status: "countdown",
+    seed: Math.floor(Math.random()*2147483647),
+    startAt: sNow() + delayMs,
+    open: false
+  });
+}
+
+// ----- 開賽倒數與比賽中 -----
+function mpBeginCountdown(){
+  mp.started = true;
+  state = "mpcount";
+  selectedChar = (mp.players[mp.myId] && mp.players[mp.myId].char >= 0) ? mp.players[mp.myId].char : selectedChar;
+  const waitSeed = () => {
+    if(mp.seed === null || mp.seed === undefined){ setTimeout(waitSeed, 80); return; }
+    reset("multi", mp.seed);
+    overlay.classList.remove("hidden");
+    overlay.classList.add("lite");
+    const tick = () => {
+      if(!mp || state !== "mpcount") return;
+      const remain = mp.startAt - sNow();
+      if(remain <= 0){
+        overlay.classList.add("hidden");
+        overlay.classList.remove("lite");
+        state = "play";
+        if(mpIsHost()) mp.ref.update({ status: "playing" });
+        mpStartPublishing();
+        return;
+      }
+      const sec = Math.ceil(remain/1000);
+      overlay.innerHTML = '<h1 class="huge">' + (sec <= 3 ? sec : "準備") + '</h1>' +
+        (sec > 3 ? '<p>等待開賽…' + sec + ' 秒</p>' : "");
+      requestAnimationFrame(tick);
+    };
+    tick();
+  };
+  waitSeed();
+}
+function mpStartPublishing(){
+  if(!mp || mp.pubTimer) return;
+  mp.pubTimer = setInterval(() => {
+    if(!mp) return;
+    if(state === "play" || state === "mppause"){
+      mp.ref.child("players/" + mp.myId).update({
+        x: Math.round(player.x), wy: Math.round(player.wy),
+        depth: Math.round(depth), floor: floorCount, alive: true
+      });
+    }
+    mpRenderBoard();
+    mpSmoothGhosts();
+  }, 250);
+}
+function mpSmoothGhosts(){
+  if(!mp) return;
+  for(const pid in mp.players){
+    if(pid === mp.myId) continue;
+    const p = mp.players[pid];
+    if(!mp.ghostPos[pid]) mp.ghostPos[pid] = { x: p.x || 0, wy: p.wy || 0, tombT: 0 };
+  }
+}
+// 幽靈每幀朝最新位置平滑移動(在 draw 前呼叫)
+function lerpGhosts(){
+  if(!mp) return;
+  for(const pid in mp.ghostPos){
+    const p = mp.players[pid];
+    if(!p) continue;
+    const gp = mp.ghostPos[pid];
+    gp.x += ((p.x || 0) - gp.x) * 0.18;
+    gp.wy += ((p.wy || 0) - gp.wy) * 0.18;
+  }
+}
+function mpRenderBoard(){
+  if(!mp || !mp.started){ mpBoardEl.innerHTML = ""; return; }
+  const rows = Object.keys(mp.players).map(pid => {
+    const p = mp.players[pid];
+    return { pid, name: p.name, floor: p.floor || 0, alive: p.alive !== false };
+  }).sort((a,b) => b.floor - a.floor);
+  mpBoardEl.innerHTML = rows.map(r =>
+    '<div class="' + (r.pid === mp.myId ? "me" : "") + '">' +
+    (r.alive ? "🟢 " : "💀 ") + escapeHTML(r.name) + " " + r.floor + "層</div>"
+  ).join("");
+}
+
+// ----- 全員暫停 -----
+function mpRequestPause(){
+  if(!mp || state !== "play") return;
+  mp.ref.child("pause").set({
+    by: mp.myId, byName: playerName,
+    until: sNow() + 60000
+  });
+}
+function mpOnPause(pause){
+  mp.pause = pause;
+  if(pause && (state === "play" || state === "mppause")){
+    state = "mppause";
+    keys.left = keys.right = false;
+    const render = () => {
+      if(!mp || state !== "mppause" || !mp.pause) return;
+      const remain = Math.max(0, Math.ceil((mp.pause.until - sNow())/1000));
+      overlay.classList.remove("hidden");
+      overlay.classList.add("lite");
+      overlay.innerHTML =
+        '<h1>⏸ 全員暫停</h1>' +
+        '<p class="big">' + escapeHTML(mp.pause.byName || "?") + ' 暫停了遊戲</p>' +
+        '<p>剩餘 ' + remain + ' 秒自動繼續</p>' +
+        (mp.pause.by === mp.myId
+          ? '<button class="start" id="mpResumeBtn">繼續遊戲</button>'
+          : '<p style="font-size:13px;opacity:.6;">等待 ' + escapeHTML(mp.pause.byName || "?") + ' 繼續…</p>');
+      const btn = document.getElementById("mpResumeBtn");
+      if(btn) btn.addEventListener("click", mpResume);
+      // 時間到 / 暫停者斷線 → 任何人都可觸發恢復
+      if(remain <= 0 || !mp.players[mp.pause.by]) mpResume();
+      else setTimeout(render, 300);
+    };
+    render();
+  }
+  if(!pause && state === "mppause" && !(mp.resumeAt > sNow())){
+    // pause 被清掉且沒有恢復倒數(保險)
+    state = "play";
+    overlay.classList.add("hidden");
+    overlay.classList.remove("lite");
+  }
+}
+function mpResume(){
+  if(!mp) return;
+  mp.ref.update({ pause: null, resumeAt: sNow() + 3200 });
+}
+function mpOnResumeAt(resumeAt){
+  mp.resumeAt = resumeAt;
+  if(resumeAt > sNow() && state === "mppause"){
+    const tick = () => {
+      if(!mp || state !== "mppause") return;
+      const remain = mp.resumeAt - sNow();
+      if(remain <= 0){
+        state = "play";
+        overlay.classList.add("hidden");
+        overlay.classList.remove("lite");
+        return;
+      }
+      overlay.classList.remove("hidden");
+      overlay.classList.add("lite");
+      overlay.innerHTML = '<h1 class="huge">' + Math.ceil(remain/1000) + '</h1>';
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+}
+
+// ----- 多人:死亡 → 觀戰 → 本場排名 -----
+function mpDie(){
+  if(!mp) return;
+  mp.ref.child("players/" + mp.myId).update({ alive: false, floor: floorCount });
+  mp.ref.child("results/" + mp.myId).set({
+    name: playerName, char: selectedChar, floor: floorCount,
+    t: firebase.database.ServerValue.TIMESTAMP
+  });
+  submitScore(playerName, floorCount, "多人");
+  state = "spectate";
+  pickSpectateTarget();
+  if(mp.specTarget){
+    spectateBar.style.display = "flex";
+    updateSpectateMsg();
+  }
+  mpCheckMatchEnd();
+}
+function aliveOthers(){
+  if(!mp) return [];
+  return Object.keys(mp.players).filter(pid =>
+    pid !== mp.myId && mp.players[pid].alive !== false);
+}
+function pickSpectateTarget(){
+  const alive = aliveOthers().sort((a,b) =>
+    (mp.players[b].floor || 0) - (mp.players[a].floor || 0));
+  mp.specTarget = alive[0] || null;
+}
+function switchSpectate(dir){
+  if(state !== "spectate" || !mp) return;
+  const alive = aliveOthers().sort((a,b) =>
+    (mp.players[b].floor || 0) - (mp.players[a].floor || 0));
+  if(alive.length === 0) return;
+  let i = alive.indexOf(mp.specTarget);
+  i = (i + dir + alive.length) % alive.length;
+  mp.specTarget = alive[i];
+  updateSpectateMsg();
+}
+function updateSpectateMsg(){
+  if(!mp || !mp.specTarget || !mp.players[mp.specTarget]) return;
+  const t = mp.players[mp.specTarget];
+  specMsg.textContent = "你在第 " + floorCount + " 層陣亡 · 觀戰中:" + (t.name || "?");
+}
+function spectateUpdate(){
+  time++;
+  if(!mp) return;
+  const t = mp.players[mp.specTarget];
+  if(!t){ pickSpectateTarget(); return; }
+  // 鏡頭平滑跟隨觀戰目標
+  const targetDepth = t.depth || 0;
+  depth += (targetDepth - depth) * 0.12;
+  ensurePlats(depth + H + 200);
+  plats = plats.filter(pl => pl.wy > depth - 120);
+  for(const pl of plats) pl.beltPhase += 0.15;
+  floorEl.textContent = "👁 " + (t.name || "?") + " · 第 " + (t.floor || 0) + " 層";
+}
+function mpCheckMatchEnd(){
+  if(!mp || !mp.started) return;
+  const anyAlive = Object.values(mp.players).some(p => p.alive !== false);
+  if(!anyAlive && Object.keys(mp.players).length > 0){
+    showMatchResults();
+  }
+}
+function showMatchResults(){
+  if(!mp || state === "mpend") return;
+  state = "mpend";
+  spectateBar.style.display = "none";
+  if(mp.pubTimer){ clearInterval(mp.pubTimer); mp.pubTimer = null; }
+  // 排名 = 正式成績 + 斷線者的最後已知資料
+  const entries = {};
+  for(const pid in mp.results){
+    const r = mp.results[pid];
+    entries[pid] = { name: r.name, floor: r.floor || 0, t: r.t || 0 };
+  }
+  for(const pid in mp.lastKnown){
+    if(!entries[pid]){
+      const k = mp.lastKnown[pid];
+      entries[pid] = { name: k.name || "?", floor: k.floor || 0, t: 9e15 };
+    }
+  }
+  const ranked = Object.keys(entries).map(pid => Object.assign({pid}, entries[pid]))
+    .sort((a,b) => b.floor - a.floor || a.t - b.t);
+  let rows = "";
+  ranked.forEach((e, i) => {
+    const medal = ["🥇","🥈","🥉"][i] || (i+1);
+    rows += "<tr" + (e.pid === mp.myId ? ' class="me"' : "") + '><td class="num">' + medal +
+      "</td><td>" + escapeHTML(e.name) + '</td><td class="score">' + e.floor + " 層</td></tr>";
+  });
+  overlay.classList.remove("hidden");
+  overlay.classList.remove("lite");
+  overlay.innerHTML =
+    '<h1>本場排名</h1>' +
+    (ranked[0] ? '<p class="big">👑 冠軍:' + escapeHTML(ranked[0].name) + '</p>' : "") +
+    '<table class="rank"><tr><th colspan="3">🏁 ' + mp.code + ' 房</th></tr>' + rows + '</table>' +
+    '<p style="font-size:13px;opacity:.7;">成績已記錄到總排行榜</p>' +
+    '<button class="start" id="rematchBtn">再來一場</button>' +
+    '<button id="leaveBtn2" class="linkBtn">離開房間</button>';
+  document.getElementById("rematchBtn").addEventListener("click", () => {
+    mp.ref.update({ status: "waiting", seed: null, startAt: 0, resumeAt: 0, open: mp.isPublic });
+    mp.ref.child("results").remove();
+  });
+  document.getElementById("leaveBtn2").addEventListener("click", () => { mpLeaveRoom(); showMpEntry(); });
+}
+
 // ----- 主迴圈 -----
 function loop(){
   if(state === "play") update();
+  else if(state === "spectate") spectateUpdate();
+  if(gameMode === "multi") lerpGhosts();
   draw();
   requestAnimationFrame(loop);
 }
-reset();
+addEventListener("beforeunload", () => { mpLeaveRoom(); });
+reset("single");
 renderHP();
 showMenu();
 loop();
