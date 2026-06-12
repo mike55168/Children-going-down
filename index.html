@@ -30,21 +30,30 @@
     image-rendering:pixelated;
   }
   #hud{
-    position:absolute;top:14px;left:18px;right:18px;
+    position:absolute;top:12px;left:18px;right:14px;
     display:flex;justify-content:space-between;align-items:center;
     pointer-events:none;font-weight:700;
     text-shadow:0 2px 4px rgba(0,0,0,.6);
   }
+  #hudRight{display:flex;align-items:center;gap:10px;}
+  #pauseBtn{
+    pointer-events:auto;width:34px;height:34px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);
+    color:var(--ink);font-size:15px;cursor:pointer;line-height:1;
+  }
+  #pauseBtn:active{background:rgba(255,255,255,.3);}
   #floor{font-size:20px;letter-spacing:1px;}
   #hp{display:flex;gap:3px;}
   .heart{width:16px;height:16px;}
   #overlay{
     position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:14px;
+    align-items:center;justify-content:flex-start;gap:14px;
     background:rgba(20,10,40,.78);border-radius:10px;
     backdrop-filter:blur(3px);text-align:center;padding:24px;
     overflow-y:auto;
   }
+  #overlay > :first-child{margin-top:auto;}
+  #overlay > :last-child{margin-bottom:auto;}
   #overlay.hidden{display:none;}
   #overlay h1{font-size:34px;color:var(--accent);letter-spacing:4px;}
   #overlay p{line-height:1.8;opacity:.9;font-size:15px;}
@@ -82,6 +91,24 @@
     font-size:13px;cursor:pointer;text-decoration:underline;font-family:inherit;
   }
   .linkBtn:hover{color:var(--ink);}
+  #charGrid{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+    width:100%;max-width:320px;
+  }
+  .charCell{
+    display:flex;flex-direction:column;align-items:center;gap:1px;
+    padding:5px 2px;border-radius:10px;cursor:pointer;
+    border:2px solid rgba(255,255,255,.15);
+    background:rgba(255,255,255,.06);
+    color:var(--ink);font-family:inherit;font-size:11px;
+  }
+  .charCell:hover{background:rgba(255,255,255,.14);}
+  .charCell.sel{
+    border-color:var(--accent);
+    background:rgba(255,200,61,.16);
+    color:var(--accent);font-weight:700;
+  }
+  .charCell canvas{image-rendering:pixelated;}
   #touch{
     display:none;width:100%;max-width:480px;
     justify-content:space-between;margin-top:14px;gap:14px;
@@ -103,7 +130,10 @@
   <canvas id="game" width="420" height="640"></canvas>
   <div id="hud">
     <div id="floor">第 0 層</div>
-    <div id="hp"></div>
+    <div id="hudRight">
+      <div id="hp"></div>
+      <button id="pauseBtn" title="暫停">⏸</button>
+    </div>
   </div>
   <div id="overlay">
     <h1>小朋友下樓梯</h1>
@@ -140,7 +170,7 @@ const hpEl = document.getElementById("hp");
 const MAX_HP = 10;
 const PLAT_H = 16;
 const PLAT_W = 96;
-const CEIL_H = 26;            // 天花板尖刺高度
+const CEIL_H = 58;            // 天花板尖刺位置(上方留出資訊列的牆面區)
 const GRAVITY = 0.45;
 const MOVE_SPEED = 4.2;
 const TYPES = { NORMAL:0, SPIKE:1, BELT_L:2, BELT_R:3, FRAGILE:4, SPRING:5 };
@@ -217,18 +247,43 @@ async function fetchBoard(){
     return await r.json();
   }catch(e){ return null; }                  // null = 連線失敗
 }
-async function loadBoardArea(current){
+const BOARD_CACHE_KEY = "stairs_board_cache";
+// 把本局成績合併進榜單(每人只留最佳),不必等伺服器寫入完成
+function mergeBoard(board, current){
+  let all = board.slice();
+  if(current) all.push({ name: current.name, floor: current.floor, t: Date.now() });
+  const best = {};
+  all.forEach(e => {
+    if(!best[e.name] || e.floor > best[e.name].floor) best[e.name] = e;
+  });
+  return Object.values(best).sort((a,b) => b.floor - a.floor || a.t - b.t).slice(0, 10);
+}
+async function loadBoardArea(current, limit){
   const el = document.getElementById("boardArea");
   if(!el) return;
-  el.innerHTML = '<p style="font-size:13px;opacity:.6;">排行榜載入中…</p>';
-  const board = await fetchBoard();
-  const el2 = document.getElementById("boardArea");
-  if(!el2) return;                           // 畫面已切換就不更新
-  if(board === null){
-    el2.innerHTML = '<p style="font-size:13px;opacity:.6;">⚠️ 無法連上排行榜,請檢查網路</p>';
-  } else {
-    el2.innerHTML = board.length ? boardHTML(board, current)
+  const render = board => {
+    const el2 = document.getElementById("boardArea");
+    if(!el2) return;                         // 畫面已切換就不更新
+    let b = mergeBoard(board, current);
+    if(limit) b = b.slice(0, limit);
+    el2.innerHTML = b.length ? boardHTML(b, current)
       : '<p style="font-size:13px;opacity:.6;">還沒有人留下紀錄,快來搶頭香!</p>';
+  };
+  // 先立刻顯示上次的榜單(秒開),再背景抓最新資料更新
+  let cached = [];
+  try{ cached = JSON.parse(storeGet(BOARD_CACHE_KEY)) || []; }catch(e){}
+  if(cached.length) render(cached);
+  else el.innerHTML = '<p style="font-size:13px;opacity:.6;">排行榜載入中…</p>';
+
+  const board = await fetchBoard();
+  if(board === null){
+    if(!cached.length){
+      const el2 = document.getElementById("boardArea");
+      if(el2) el2.innerHTML = '<p style="font-size:13px;opacity:.6;">⚠️ 無法連上排行榜,請檢查網路</p>';
+    }
+  } else {
+    storeSet(BOARD_CACHE_KEY, JSON.stringify(board));
+    render(board);
   }
 }
 function boardHTML(board, current){
@@ -253,6 +308,8 @@ function reset(){
   scrollSpeed = 1.4;
   depth = 0; floorCount = 0;
   hp = MAX_HP; invul = 0; shake = 0; time = 0;
+  lastThemeIdx = 0; themeMsg = ""; themeMsgT = 0;
+  bgCur = THEMES[0].bg.slice(); ceilCur = THEMES[0].ceil.slice();
   // 初始平台:一塊在腳下,其餘往下排
   plats.push(makePlat(W/2 - PLAT_W/2, 200, TYPES.NORMAL));
   spawnY = 200;
@@ -282,12 +339,13 @@ const rand = (a,b) => a + Math.random()*(b-a);
 // ----- 輸入 -----
 addEventListener("keydown", e => {
   if(e.target && e.target.tagName === "INPUT"){
-    if(e.code === "Enter") startGame();
+    if(e.code === "Enter") goCharSelect();
     return;                                  // 打字時不觸發遊戲按鍵
   }
   if(e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
   if(e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
-  if(e.code === "Space" && state !== "play") startGame();
+  if(e.code === "Space" && state === "dead") startGame();
+  if((e.code === "Escape" || e.code === "KeyP") && (state === "play" || state === "paused")) togglePause();
 });
 addEventListener("keyup", e => {
   if(e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
@@ -307,8 +365,16 @@ startBtn.addEventListener("click", startGame);
 cvs.addEventListener("pointerdown", () => { if(state === "dead") startGame(); });
 
 function startGame(){
+  if(!playerName){ showMenu(); return; }
+  reset();
+  state = "play";
+  overlay.classList.add("hidden");
+}
+
+// 第一頁按「進入遊戲」:確認名字後前往選角頁
+function goCharSelect(){
   const input = document.getElementById("nameInput");
-  if(input){                                 // 開始畫面:需要先輸入名字
+  if(input){
     const name = input.value.trim();
     if(!name){
       document.getElementById("nameErr").textContent = "請先輸入名字才能開始喔!";
@@ -319,10 +385,30 @@ function startGame(){
     storeSet(NAME_KEY, name);
   }
   if(!playerName) return;
-  reset();
-  state = "play";
-  overlay.classList.add("hidden");
+  showCharSelect();
 }
+
+function togglePause(){
+  if(state === "play"){
+    state = "paused";
+    keys.left = keys.right = false;          // 放開方向鍵,避免恢復時暴衝
+    overlay.classList.remove("hidden");
+    overlay.innerHTML =
+      '<h1>暫停中</h1>' +
+      '<p class="big">' + escapeHTML(playerName) + ' · 第 ' + floorCount + ' 層</p>' +
+      '<p>休息一下,準備好再繼續!</p>' +
+      '<button class="start" id="resumeBtn">繼續遊戲</button>' +
+      '<button id="quitBtn" class="linkBtn">放棄這局,回到主選單</button>';
+    document.getElementById("resumeBtn").addEventListener("click", togglePause);
+    document.getElementById("quitBtn").addEventListener("click", () => {
+      if(confirm("確定要放棄這局嗎?這局的成績不會被記錄。")) showMenu();
+    });
+  } else if(state === "paused"){
+    state = "play";
+    overlay.classList.add("hidden");
+  }
+}
+document.getElementById("pauseBtn").addEventListener("click", togglePause);
 
 // ----- 更新 -----
 function damage(n){
@@ -344,13 +430,12 @@ function die(){
     '<button id="switchBtn" class="linkBtn">變更玩家</button>';
   document.getElementById("againBtn").addEventListener("click", startGame);
   document.getElementById("switchBtn").addEventListener("click", () => showMenu(true));
-  // 先上傳這局成績,再讀取最新排行榜
-  (async () => {
-    await submitScore(playerName, floorCount);
-    await loadBoardArea({ name: playerName, floor: floorCount });
-  })();
+  // 上傳成績與讀取排行榜同時進行;本局成績先在本地合併進榜單,不用等伺服器
+  submitScore(playerName, floorCount);
+  loadBoardArea({ name: playerName, floor: floorCount });
 }
 
+// 第一頁:標題、歡迎/輸入名字、遊戲講解、排行榜、進入遊戲
 function showMenu(forceInput){
   state = "menu";
   overlay.classList.remove("hidden");
@@ -358,11 +443,9 @@ function showMenu(forceInput){
   const useWelcome = saved && !forceInput;
   const nameUI = useWelcome
     ? '<p class="big">歡迎回來,' + escapeHTML(saved) + '!</p>' +
-      '<button class="start" id="startBtn">開始遊戲</button>' +
       '<button id="switchBtn" class="linkBtn">變更玩家</button>'
     : '<input id="nameInput" maxlength="10" placeholder="輸入你的名字" autocomplete="off">' +
-      '<p id="nameErr"></p>' +
-      '<button class="start" id="startBtn">開始遊戲</button>';
+      '<p id="nameErr"></p>';
   overlay.innerHTML =
     '<h1>小朋友下樓梯</h1>' +
     '<p>←→ 或 A / D 移動,一路往下跳!<br>' +
@@ -370,17 +453,54 @@ function showMenu(forceInput){
     '▶ 輸送帶:會把你推走&nbsp;&nbsp;🟠 脆弱地板:踩了會碎<br>' +
     '🌀 彈簧:把你彈起來&nbsp;&nbsp;⚠️ 小心天花板的尖刺!</p>' +
     nameUI +
-    '<div id="boardArea"></div>';
-  if(useWelcome) playerName = saved;
-  document.getElementById("startBtn").addEventListener("click", startGame);
+    '<div id="boardArea"></div>' +
+    '<button class="start" id="enterBtn">進入遊戲</button>';
+  playerName = useWelcome ? saved : "";
+  document.getElementById("enterBtn").addEventListener("click", goCharSelect);
   const switchBtn = document.getElementById("switchBtn");
   if(switchBtn) switchBtn.addEventListener("click", () => showMenu(true));
   const input = document.getElementById("nameInput");
-  if(input){
-    playerName = "";                         // 變更玩家時須重新確認名字
-    input.focus();
-  }
-  loadBoardArea(null);
+  if(input) input.focus();
+  loadBoardArea(null, 3);                    // 起始頁只顯示前三名
+}
+
+// 第二頁:選擇角色、開始遊戲
+function showCharSelect(){
+  state = "menu";
+  overlay.classList.remove("hidden");
+  overlay.innerHTML =
+    '<h1>選擇你的角色</h1>' +
+    '<div id="charGrid"></div>' +
+    '<button class="start" id="startBtn">開始遊戲</button>' +
+    '<button id="backBtn" class="linkBtn">← 返回上一頁</button>';
+  buildCharGrid();
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  document.getElementById("backBtn").addEventListener("click", () => showMenu());
+}
+
+function buildCharGrid(){
+  const grid = document.getElementById("charGrid");
+  if(!grid) return;
+  CHARS.forEach((c, i) => {
+    const cell = document.createElement("button");
+    cell.className = "charCell" + (i === selectedChar ? " sel" : "");
+    const cv = document.createElement("canvas");
+    cv.width = 52; cv.height = 56;
+    const g = cv.getContext("2d");
+    g.translate((52 - 26*1.25)/2, (56 - 30*1.25)/2 + 3);
+    g.scale(1.25, 1.25);
+    renderChar(g, c, 1, 0);
+    const label = document.createElement("span");
+    label.textContent = c.name;
+    cell.appendChild(cv);
+    cell.appendChild(label);
+    cell.addEventListener("click", () => {
+      selectedChar = i;
+      storeSet(CHAR_KEY, String(i));
+      grid.querySelectorAll(".charCell").forEach((el, j) => el.classList.toggle("sel", j === i));
+    });
+    grid.appendChild(cell);
+  });
 }
 function praise(n){
   if(n >= 100) return "太神了!你是下樓梯之王 👑";
@@ -396,8 +516,8 @@ function update(){
   if(shake > 0) shake *= 0.85;
   if(player.squash > 0) player.squash *= 0.85;
 
-  // 難度:速度隨層數提升
-  scrollSpeed = 1.4 + Math.min(2.6, floorCount * 0.025);
+  // 難度:速度隨層數提升(上限 3.6)
+  scrollSpeed = 1.4 + Math.min(2.2, floorCount * 0.022);
 
   // 水平移動
   player.vx = 0;
@@ -414,9 +534,11 @@ function update(){
   player.x += player.vx;
   player.x = Math.max(2, Math.min(W - player.w - 2, player.x));
 
-  // 重力
-  player.vy += GRAVITY;
-  if(player.vy > 12) player.vy = 12;
+  // 重力(隨關卡同步加強,確保掉落速度永遠追得上畫面捲動)
+  const g = GRAVITY * (1 + (scrollSpeed - 1.4) * 0.5);
+  player.vy += g;
+  const vyMax = 12 + (scrollSpeed - 1.4) * 2.5;
+  if(player.vy > vyMax) player.vy = vyMax;
   const prevBottom = player.y + player.h;
   player.y += player.vy;
 
@@ -569,6 +691,145 @@ function drawPlat(pl){
   ctx.restore();
 }
 
+// ----- 角色系統:16 款角色 -----
+const CHAR_KEY = "stairs_char";
+const CHARS = [
+  { name:"小黃",   body:"#ffd166", skin:"#ffe0a3", hair:"#4a2c14", shoe:"#c0392b", acc:"none",     accColor:"" },
+  { name:"草莓妹", body:"#ff8fab", skin:"#ffe0c2", hair:"#7a3b2e", shoe:"#b23a48", acc:"bow",      accColor:"#ff4d6d" },
+  { name:"小藍帽", body:"#5aa9e6", skin:"#ffe0b8", hair:"#2b2d42", shoe:"#16425b", acc:"cap",      accColor:"#1d4e89" },
+  { name:"小國王", body:"#b388eb", skin:"#ffe0b8", hair:"#6d4c2f", shoe:"#5e548e", acc:"crown",    accColor:"#ffd700" },
+  { name:"小博士", body:"#7fb069", skin:"#ffe6c7", hair:"#555555", shoe:"#4f772d", acc:"glasses",  accColor:"#222222" },
+  { name:"小天使", body:"#f6f4ff", skin:"#ffe9d6", hair:"#e9d8a6", shoe:"#c9b6e4", acc:"halo",     accColor:"#ffd700" },
+  { name:"小惡魔", body:"#ef476f", skin:"#ffd9c9", hair:"#3a0d12", shoe:"#6a040f", acc:"horns",    accColor:"#b3001b" },
+  { name:"喵喵",   body:"#f4a261", skin:"#ffe8cf", hair:"#9c5518", shoe:"#8a5a2b", acc:"catears",  accColor:"#f4a261" },
+  { name:"機器人", body:"#9aa5b1", skin:"#cfd8e3", hair:"#5c677d", shoe:"#3d4b5c", acc:"antenna",  accColor:"#ff5d73" },
+  { name:"小忍者", body:"#3d405b", skin:"#ffd9b8", hair:"#1a1b2e", shoe:"#1a1b2e", acc:"ninja",    accColor:"#d62828" },
+  { name:"小選手", body:"#48cae4", skin:"#ffe0b8", hair:"#432818", shoe:"#0077b6", acc:"headband", accColor:"#ef233c" },
+  { name:"花花",   body:"#b5e48c", skin:"#ffe6cc", hair:"#6f4518", shoe:"#588157", acc:"flower",   accColor:"#ff87ab" },
+  { name:"小主廚", body:"#e9ecef", skin:"#ffdfb9", hair:"#6b4423", shoe:"#495057", acc:"chef",     accColor:"#ffffff" },
+  { name:"小海盜", body:"#a47148", skin:"#f1c89b", hair:"#2f1b0c", shoe:"#432818", acc:"pirate",   accColor:"#212529" },
+  { name:"小豆芽", body:"#95d5b2", skin:"#d8f3dc", hair:"#2d6a4f", shoe:"#40916c", acc:"sprout",   accColor:"#2d6a4f" },
+  { name:"小幽靈", body:"#dcd6f7", skin:"#f5f3ff", hair:"#a5a1d2", shoe:"#8d86c9", acc:"halo",     accColor:"#cfc9f2" }
+];
+let selectedChar = Math.min(CHARS.length - 1, Math.max(0, parseInt(storeGet(CHAR_KEY)) || 0));
+
+function drawAccessory(g, c, face){
+  const hx = 13, hy = 9;                     // 頭部中心(角色寬 26)
+  g.fillStyle = c.accColor; g.strokeStyle = c.accColor;
+  switch(c.acc){
+    case "bow": {
+      const bx = hx - face*7, by = 0;
+      g.beginPath();
+      g.moveTo(bx, by); g.lineTo(bx-6, by-4); g.lineTo(bx-6, by+4); g.closePath();
+      g.moveTo(bx, by); g.lineTo(bx+6, by-4); g.lineTo(bx+6, by+4); g.closePath();
+      g.fill();
+      g.beginPath(); g.arc(bx, by, 2, 0, Math.PI*2); g.fill();
+      break;
+    }
+    case "cap":
+      g.beginPath(); g.arc(hx, 6, 10.5, Math.PI, 0); g.fill();
+      g.fillRect(face === 1 ? hx : hx-13, 3, 13, 4);
+      break;
+    case "crown":
+      g.beginPath();
+      g.moveTo(hx-8, 0); g.lineTo(hx-8, -8); g.lineTo(hx-4, -3);
+      g.lineTo(hx, -9); g.lineTo(hx+4, -3); g.lineTo(hx+8, -8); g.lineTo(hx+8, 0);
+      g.closePath(); g.fill();
+      break;
+    case "glasses": {
+      g.lineWidth = 1.6;
+      const ex = hx + face*3;
+      g.beginPath(); g.arc(ex-3, 10, 4, 0, Math.PI*2); g.stroke();
+      g.beginPath(); g.arc(ex+3, 10, 4, 0, Math.PI*2); g.stroke();
+      g.beginPath(); g.moveTo(ex-1, 9); g.lineTo(ex+1, 9); g.stroke();
+      break;
+    }
+    case "halo":
+      g.lineWidth = 2.5;
+      g.beginPath(); g.ellipse(hx, -6, 8, 2.6, 0, 0, Math.PI*2); g.stroke();
+      break;
+    case "horns":
+      g.beginPath();
+      g.moveTo(hx-6, 0); g.lineTo(hx-10, -8); g.lineTo(hx-3, -2); g.closePath();
+      g.moveTo(hx+6, 0); g.lineTo(hx+10, -8); g.lineTo(hx+3, -2); g.closePath();
+      g.fill();
+      break;
+    case "catears":
+      g.beginPath();
+      g.moveTo(hx-9, 2); g.lineTo(hx-7, -8); g.lineTo(hx-2, -1); g.closePath();
+      g.moveTo(hx+9, 2); g.lineTo(hx+7, -8); g.lineTo(hx+2, -1); g.closePath();
+      g.fill();
+      g.fillStyle = "#ffb4a2";
+      g.beginPath();
+      g.moveTo(hx-7.5, 0); g.lineTo(hx-6.8, -5); g.lineTo(hx-4, -1); g.closePath();
+      g.moveTo(hx+7.5, 0); g.lineTo(hx+6.8, -5); g.lineTo(hx+4, -1); g.closePath();
+      g.fill();
+      break;
+    case "antenna":
+      g.lineWidth = 2;
+      g.beginPath(); g.moveTo(hx, -1); g.lineTo(hx, -8); g.stroke();
+      g.beginPath(); g.arc(hx, -9, 2.6, 0, Math.PI*2); g.fill();
+      break;
+    case "ninja":
+      g.fillRect(hx-10, 3, 20, 4);
+      g.fillRect(hx - face*10 - (face === 1 ? 4 : 0), 4, 4, 7); // 頭巾尾巴
+      break;
+    case "headband":
+      g.fillRect(hx-10, 3.5, 20, 3.5);
+      break;
+    case "flower": {
+      const fx = hx - face*7, fy = 1;
+      for(let i=0;i<5;i++){
+        const a = i/5 * Math.PI*2;
+        g.beginPath(); g.arc(fx + Math.cos(a)*3, fy + Math.sin(a)*3, 2, 0, Math.PI*2); g.fill();
+      }
+      g.fillStyle = "#ffd700";
+      g.beginPath(); g.arc(fx, fy, 2, 0, Math.PI*2); g.fill();
+      break;
+    }
+    case "chef":
+      g.fillRect(hx-6, -7, 12, 7);
+      g.beginPath();
+      g.arc(hx-4, -7, 3, 0, Math.PI*2);
+      g.arc(hx, -8.5, 3.4, 0, Math.PI*2);
+      g.arc(hx+4, -7, 3, 0, Math.PI*2);
+      g.fill();
+      break;
+    case "pirate": {
+      g.beginPath(); g.arc(hx, 6, 10.5, Math.PI, 0); g.fill(); // 頭巾
+      const ex = hx + face*3;
+      g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(hx-10, 8.5); g.lineTo(hx+10, 6); g.stroke(); // 眼罩帶
+      g.beginPath(); g.arc(ex+3, 10, 3, 0, Math.PI*2); g.fill();           // 眼罩
+      break;
+    }
+    case "sprout":
+      g.lineWidth = 2;
+      g.beginPath(); g.moveTo(hx, -1); g.lineTo(hx, -6); g.stroke();
+      g.beginPath(); g.ellipse(hx-3.5, -7, 3.5, 2, -0.5, 0, Math.PI*2); g.fill();
+      g.beginPath(); g.ellipse(hx+3.5, -7, 3.5, 2, 0.5, 0, Math.PI*2); g.fill();
+      break;
+  }
+}
+
+// 在指定的繪圖環境畫出一個角色(遊戲中與選角預覽共用)
+function renderChar(g, c, face, step){
+  const w = 26, h = 30;
+  g.fillStyle = c.body;
+  roundRectG(g, 0, 8, w, h-8, 6); g.fill();
+  g.fillStyle = c.skin;
+  g.beginPath(); g.arc(w/2, 9, 10, 0, Math.PI*2); g.fill();
+  g.fillStyle = c.hair;
+  g.beginPath(); g.arc(w/2, 6, 10, Math.PI, 0); g.fill();
+  g.fillStyle = "#222";
+  const ex = w/2 + face*3;
+  g.beginPath(); g.arc(ex-3, 10, 1.6, 0, Math.PI*2); g.arc(ex+3, 10, 1.6, 0, Math.PI*2); g.fill();
+  g.fillStyle = c.shoe;
+  g.fillRect(4, h-4+step*0.5, 7, 4);
+  g.fillRect(w-11, h-4-step*0.5, 7, 4);
+  drawAccessory(g, c, face);
+}
+
 function drawPlayer(){
   if(invul > 0 && Math.floor(time/4) % 2 === 0) return; // 受傷閃爍
   const sq = player.squash;
@@ -577,58 +838,125 @@ function drawPlayer(){
   ctx.translate(px + w/2, py + h);
   ctx.scale(1 + sq*0.25, 1 - sq*0.25);
   ctx.translate(-w/2, -h);
-
-  // 身體
-  ctx.fillStyle = "#ffd166";
-  roundRect(0, 8, w, h-8, 6); ctx.fill();
-  // 頭
-  ctx.fillStyle = "#ffe0a3";
-  ctx.beginPath(); ctx.arc(w/2, 9, 10, 0, Math.PI*2); ctx.fill();
-  // 頭髮
-  ctx.fillStyle = "#4a2c14";
-  ctx.beginPath(); ctx.arc(w/2, 6, 10, Math.PI, 0); ctx.fill();
-  // 眼睛
-  ctx.fillStyle = "#222";
-  const ex = w/2 + player.face*3;
-  ctx.beginPath(); ctx.arc(ex-3, 10, 1.6, 0, Math.PI*2); ctx.arc(ex+3, 10, 1.6, 0, Math.PI*2); ctx.fill();
-  // 腳
-  ctx.fillStyle = "#c0392b";
   const step = player.vx !== 0 ? Math.sin(time*0.4)*3 : 0;
-  ctx.fillRect(4, h-4+step*0.5, 7, 4);
-  ctx.fillRect(w-11, h-4-step*0.5, 7, 4);
+  renderChar(ctx, CHARS[selectedChar], player.face, step);
   ctx.restore();
 }
 
-function roundRect(x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);
-  ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
+function roundRectG(g, x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y);
+  g.arcTo(x+w,y,x+w,y+h,r);
+  g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r);
+  g.arcTo(x,y,x+w,y,r);
+  g.closePath();
+}
+function roundRect(x,y,w,h,r){ roundRectG(ctx, x,y,w,h,r); }
+
+// ----- 背景主題:每 THEME_EVERY 層換一個場景,循環使用 -----
+const THEME_EVERY = 10;
+const THEMES = [
+  { name:"紫晶磚牆", bg:[36,24,69],  ceil:[58,42,94],   pattern:"brick" },
+  { name:"苔綠洞窟", bg:[18,40,30],  ceil:[42,76,56],   pattern:"stone" },
+  { name:"冰封雪窟", bg:[18,38,58],  ceil:[58,92,132],  pattern:"ice"   },
+  { name:"熔岩深淵", bg:[44,17,14],  ceil:[88,33,22],   pattern:"lava"  },
+  { name:"鋼鐵機房", bg:[28,31,40],  ceil:[60,66,84],   pattern:"metal" }
+];
+let bgCur = THEMES[0].bg.slice(), ceilCur = THEMES[0].ceil.slice();
+let lastThemeIdx = 0, themeMsg = "", themeMsgT = 0;
+
+function currentTheme(){
+  return THEMES[Math.floor(floorCount / THEME_EVERY) % THEMES.length];
+}
+const rgb = c => "rgb(" + (c[0]|0) + "," + (c[1]|0) + "," + (c[2]|0) + ")";
+
+function drawPattern(type){
+  const off = depth % 48;
+  switch(type){
+    case "brick":
+      ctx.fillStyle = "rgba(255,255,255,.03)";
+      for(let y=-off; y<H; y+=48)
+        for(let x = (Math.floor((y+depth)/48)%2)*40 - 40; x<W; x+=80)
+          ctx.fillRect(x, y, 76, 44);
+      break;
+    case "stone":
+      ctx.fillStyle = "rgba(255,255,255,.045)";
+      for(let y=-off; y<H+48; y+=48)
+        for(let x = (Math.floor((y+depth)/48)%2)*30; x<W+40; x+=60){
+          ctx.beginPath();
+          ctx.ellipse(x, y, 24, 17, 0, 0, Math.PI*2);
+          ctx.fill();
+        }
+      break;
+    case "ice":
+      ctx.strokeStyle = "rgba(200,235,255,.08)";
+      ctx.lineWidth = 2;
+      for(let y=-off; y<H+48; y+=48)
+        for(let x = (Math.floor((y+depth)/48)%2)*24; x<W+48; x+=48){
+          ctx.beginPath();
+          ctx.moveTo(x, y-16); ctx.lineTo(x+16, y);
+          ctx.lineTo(x, y+16); ctx.lineTo(x-16, y);
+          ctx.closePath(); ctx.stroke();
+        }
+      break;
+    case "lava":
+      for(let y=-off; y<H+48; y+=48)
+        for(let x = (Math.floor((y+depth)/48)%2)*36 + 18; x<W+40; x+=72){
+          const pulse = 0.05 + 0.04 * Math.sin(time*0.05 + x + y*0.1);
+          ctx.fillStyle = "rgba(255,120,40," + pulse.toFixed(3) + ")";
+          ctx.beginPath();
+          ctx.arc(x, y, 14, 0, Math.PI*2);
+          ctx.fill();
+        }
+      break;
+    case "metal":
+      ctx.strokeStyle = "rgba(255,255,255,.04)";
+      ctx.lineWidth = 10;
+      for(let x=-H-off; x<W+H; x+=56){
+        ctx.beginPath();
+        ctx.moveTo(x, -10); ctx.lineTo(x+H+20, H+10);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(255,255,255,.07)";
+      for(let y=-off; y<H+48; y+=48)
+        for(let x = (Math.floor((y+depth)/48)%2)*32 + 16; x<W; x+=64){
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI*2);
+          ctx.fill();
+        }
+      break;
+  }
 }
 
 function draw(){
+  // 顏色朝目前主題平滑過渡
+  const th = currentTheme();
+  for(let i=0;i<3;i++){
+    bgCur[i]   += (th.bg[i]   - bgCur[i])   * 0.04;
+    ceilCur[i] += (th.ceil[i] - ceilCur[i]) * 0.04;
+  }
+  // 進入新場景時顯示提示
+  const idx = Math.floor(floorCount / THEME_EVERY) % THEMES.length;
+  if(state === "play" && idx !== lastThemeIdx){
+    lastThemeIdx = idx;
+    themeMsg = "進入 " + th.name;
+    themeMsgT = 130;
+  }
+
   ctx.save();
   if(shake > 0.5) ctx.translate(rand(-shake,shake), rand(-shake,shake));
 
-  // 背景磚牆
-  ctx.fillStyle = "#241845";
+  // 背景與材質
+  ctx.fillStyle = rgb(bgCur);
   ctx.fillRect(-10,-10,W+20,H+20);
-  ctx.fillStyle = "rgba(255,255,255,.03)";
-  const off = depth % 48;
-  for(let y=-off; y<H; y+=48){
-    for(let x = (Math.floor((y+depth)/48)%2)*40 - 40; x<W; x+=80){
-      ctx.fillRect(x, y, 76, 44);
-    }
-  }
+  drawPattern(th.pattern);
 
   for(const pl of plats) drawPlat(pl);
   drawPlayer();
 
   // 天花板尖刺
-  ctx.fillStyle = "#3a2a5e";
+  ctx.fillStyle = rgb(ceilCur);
   ctx.fillRect(-10, -10, W+20, CEIL_H-8);
   ctx.fillStyle = "#cfd2e8";
   for(let i=0;i<W;i+=16){
@@ -637,6 +965,22 @@ function draw(){
     ctx.lineTo(i+8, CEIL_H+8);
     ctx.lineTo(i+16, CEIL_H-9);
     ctx.fill();
+  }
+
+  // 場景切換提示文字
+  if(themeMsgT > 0){
+    themeMsgT--;
+    const a = Math.min(1, themeMsgT / 40);
+    ctx.globalAlpha = a;
+    ctx.font = "bold 26px 'Microsoft JhengHei', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffc83d";
+    ctx.strokeStyle = "rgba(0,0,0,.6)";
+    ctx.lineWidth = 5;
+    ctx.strokeText(themeMsg, W/2, 130);
+    ctx.fillText(themeMsg, W/2, 130);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
   }
   ctx.restore();
 }
